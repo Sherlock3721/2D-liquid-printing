@@ -3,7 +3,7 @@ __pycache__/
 *.pyc
 build/
 dist/
-*.spec
+# *.spec  <-- Povolujeme spec soubory pro build
 settings.json
 temp_print.gcode
 .env
