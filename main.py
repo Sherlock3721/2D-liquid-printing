@@ -57,8 +57,8 @@ class GCodeApp(QMainWindow):
         self._init_updater()
 
     def _init_updater(self):
-        # Nastavení repositáře (např. 'cyrilveverka/gcode-editor')
-        self.updater = AutoUpdater(APP_VERSION, repo_owner="uzivatel", repo_name="gcode-editor")
+        # Nastavení repositáře pro Sherlock3721/2D-liquid-printing
+        self.updater = AutoUpdater(APP_VERSION, repo_owner="Sherlock3721", repo_name="2D-liquid-printing")
         self.updater.update_available.connect(self.on_update_available)
         self.updater.update_ready.connect(self.on_update_ready)
         self.updater.error.connect(lambda msg: print(f"Updater info: {msg}"))
