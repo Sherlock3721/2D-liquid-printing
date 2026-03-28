@@ -4,20 +4,14 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+
 jobs:
   build:
-    name: Build for ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            artifact_name: gcode-editor-win.exe
-            asset_name: gcode-editor-windows.exe
-          - os: ubuntu-latest
-            artifact_name: main
-            asset_name: gcode-editor-linux
-
+    name: Build for Windows
+    runs-on: windows-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,25 +19,22 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # Stabilnější verze pro kompilaci
+          python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install basic dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
           pip install pyinstaller
+
+      - name: Install requirements
+        run: pip install -r requirements.txt
 
       - name: Build with PyInstaller
         run: pyinstaller --noconfirm main.spec
 
-      - name: Rename Artifact (Windows)
-        if: matrix.os == 'windows-latest'
-        run: move dist/main.exe dist/${{ matrix.artifact_name }}
+      - name: Rename Artifact
+        run: move dist\main.exe dist\gcode-editor-windows.exe
         shell: cmd
-
-      - name: Rename Artifact (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: mv dist/main dist/${{ matrix.artifact_name }}
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
@@ -51,6 +42,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./dist/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
+          asset_path: ./dist/gcode-editor-windows.exe
+          asset_name: gcode-editor-windows.exe
           asset_content_type: application/octet-stream
