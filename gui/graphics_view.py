@@ -535,11 +535,21 @@ class InteractiveGraphicsView(QGraphicsView):
                     
                 path_print = QPainterPath()
                 for px, py in zip(px_list, py_list):
-                    path_print.moveTo(px[0] + gx, view_y(py[0] + gy))
-                    for x, y in zip(px[1:], py[1:]):
-                        path_print.lineTo(x + gx, view_y(y + gy))                
+                    if len(px) == 2 and px[0] == px[1]:
+                        # Vizualizace kapky: malý kroužek o průměru trysky (nebo aspoň 1mm pro viditelnost)
+                        r = max(0.5, nozzle_diam / 2.0)
+                        path_print.addEllipse(QPointF(px[0] + gx, view_y(py[0] + gy)), r, r)
+                    else:
+                        path_print.moveTo(px[0] + gx, view_y(py[0] + gy))
+                        for x, y in zip(px[1:], py[1:]):
+                            path_print.lineTo(x + gx, view_y(y + gy))                
                 item_print = QGraphicsPathItem(path_print)
                 item_print.setPen(pen_print)
+                
+                # Pokud jsou v cestě tečky, vyplníme je barvou pera
+                if any(len(p) == 2 and p[0] == p[1] for p in px_list):
+                    item_print.setBrush(QBrush(pen_print.color()))
+                    
                 movable_group.addToGroup(item_print)
                 movable_group.setZValue(1)
                 movable_group.setTransformOriginPoint(item_print.boundingRect().topLeft())

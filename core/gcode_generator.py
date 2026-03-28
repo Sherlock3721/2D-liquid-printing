@@ -113,6 +113,19 @@ def generate_gcode(logic, params):
                 for px, py in zip(px_list, py_list):
                     if not px: continue
                     abs_x, abs_y = transform_pt(px[0], py[0])
+                    
+                    if infill_style == "Dot Dispenser" and len(px) == 2 and px[0] == px[1]:
+                        # SPECIÁLNÍ REŽIM: DOT DISPENSER (Dávkování kapek)
+                        # loc_ext v tomto případě interpretujeme jako µl na jednu kapku
+                        dot_e = loc_ext / area 
+                        
+                        result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop nad bod\n")
+                        result.append(f"G0 X{abs_x:.3f} Y{abs_y:.3f} F3000\n")
+                        result.append(f"G0 Z{print_z:.3f} F1000 ; Klesnuti k povrchu\n")
+                        result.append(f"G1 E{dot_e:.5f} F300 ; Pomale davkovani kapky\n")
+                        result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop po davkovani\n")
+                        continue
+
                     result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop\n")
                     result.append(f"G0 X{abs_x:.3f} Y{abs_y:.3f} F3000\n")
                     result.append(f"G0 Z{print_z:.3f} F1000\n")

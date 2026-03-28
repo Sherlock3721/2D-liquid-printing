@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget,
                              QHBoxLayout, QMessageBox, QFileDialog)
 from PyQt6.QtCore import Qt
 
-APP_VERSION = "0.0.7"
+APP_VERSION = "0.0.8"
 
 from gui.settings import load_settings
 from gui.menu_bar import create_main_menu

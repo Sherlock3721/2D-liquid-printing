@@ -113,7 +113,7 @@ class LeftPanel(QWidget):
 
         main_layout.addLayout(self.form_layout)
         self.form_layout.addRow(QLabel("<b>--- Vektorové výplně ---</b>"))
-        self.cmb_infill_style = QComboBox(); self.cmb_infill_style.addItems(["S okraji", "Bez okrajů", "Okraje", "Had"])
+        self.cmb_infill_style = QComboBox(); self.cmb_infill_style.addItems(["S okraji", "Bez okrajů", "Okraje", "Had", "Dot Dispenser"])
         self.form_layout.addRow("Styl výplně:", self.cmb_infill_style)
         self.widget_infill = QWidget()
         layout_infill = QHBoxLayout(self.widget_infill)

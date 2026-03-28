@@ -153,6 +153,43 @@ class VectorSlicer:
         infill_spacing = nozzle_diam / (infill_val / 100.0) if infill_type == "%" and infill_val > 0 else infill_val
 
         for geom in centered_geoms:
+            if infill_style == "Dot Dispenser":
+                from shapely.geometry import Point
+                if isinstance(geom, Polygon):
+                    centroid = geom.centroid
+                    # Rotujeme polygon pro výpočet mřížky pod úhlem
+                    rotated_geom = make_valid(rotate(geom, -infill_angle, origin=centroid)) if infill_angle != 0 else geom
+                    if rotated_geom.is_empty: continue
+                    
+                    g_minx, g_miny, g_maxx, g_maxy = rotated_geom.bounds
+                    
+                    # Generování mřížky bodů
+                    y_curr = g_miny + (infill_spacing / 2.0)
+                    while y_curr < g_maxy:
+                        x_curr = g_minx + (infill_spacing / 2.0)
+                        while x_curr < g_maxx:
+                            pt = Point(x_curr, y_curr)
+                            if rotated_geom.contains(pt):
+                                # Rotace bodu zpět do původní orientace
+                                res_pt = rotate(pt, infill_angle, origin=centroid) if infill_angle != 0 else pt
+                                path_x.append([res_pt.x, res_pt.x])
+                                path_y.append([res_pt.y, res_pt.y])
+                            x_curr += infill_spacing
+                        y_curr += infill_spacing
+                
+                elif isinstance(geom, (LineString, MultiLineString)):
+                    # Pro čáry vygenerujeme body podél trasy
+                    lines = geom.geoms if hasattr(geom, 'geoms') else [geom]
+                    for line in lines:
+                        length = line.length
+                        dist = 0.0
+                        while dist <= length:
+                            pt = line.interpolate(dist)
+                            path_x.append([pt.x, pt.x])
+                            path_y.append([pt.y, pt.y])
+                            dist += infill_spacing if infill_spacing > 0 else length + 1
+                continue
+
             if isinstance(geom, Polygon):
                 if infill_style in ["S okraji", "Okraje"]:
                     x, y = geom.exterior.xy
