@@ -1,0 +1,15 @@
+venv/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+settings.json
+temp_print.gcode
+.env
+.DS_Store
+*.gcode
+!gcodes/odpliv.gcode
+!gcodes/*.svg
+!gcodes/*.dxf
+/home/evolve/gcode_editor/gcodes/*.gcode
