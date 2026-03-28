@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget,
                              QHBoxLayout, QMessageBox, QFileDialog)
 from PyQt6.QtCore import Qt
 
-APP_VERSION = "0.0.5"
+APP_VERSION = "0.0.6"
 
 from gui.settings import load_settings
 from gui.menu_bar import create_main_menu
@@ -57,22 +57,39 @@ class GCodeApp(QMainWindow):
         self._init_updater()
 
     def _init_updater(self):
-        # Nastavení repositáře pro Sherlock3721/2D-liquid-printing
-        self.updater = AutoUpdater(APP_VERSION, repo_owner="Sherlock3721", repo_name="2D-liquid-printing")
+        # Pokus o získání tokenu z .git/config (pro interní/vývojové účely)
+        github_token = None
+        git_config_path = os.path.join(os.getcwd(), ".git", "config")
+        if os.path.exists(git_config_path):
+            try:
+                with open(git_config_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    import re
+                    # Hledáme token ve formátu https://user:token@github.com...
+                    match = re.search(r"https://[^:]+:([^@]+)@github\.com", content)
+                    if match:
+                        github_token = match.group(1)
+            except Exception: pass
+
+        self.updater = AutoUpdater(APP_VERSION, repo_owner="Sherlock3721", repo_name="2D-liquid-printing", github_token=github_token)
         self.updater.update_available.connect(self.on_update_available)
         self.updater.update_ready.connect(self.on_update_ready)
         self.updater.error.connect(lambda msg: print(f"Updater info: {msg}"))
         
-        # Při startu zkontrolujeme aktualizace tise, pokud jsme zabalení (frozen)
         if getattr(sys, 'frozen', False):
             self.updater.check_for_updates()
 
     def check_updates_manually(self):
+        # Pro debugging povolíme kontrolu i mimo frozen, ale s varováním
         if not getattr(sys, 'frozen', False):
-            QMessageBox.information(self, "Aktualizace", "Spouštíte aplikaci ze zdrojových kódů. Automatické aktualizace jsou dostupné pouze ve zkompilované verzi (PyInstaller).")
-            return
+            res = QMessageBox.question(
+                self, "Vývojářský režim",
+                "Spouštíte aplikaci ze zdrojových kódů. Aktualizace by mohla přepsat vaše soubory. Chcete přesto pokračovat v kontrole?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            if res == QMessageBox.StandardButton.No: return
             
-        self.updater.error.disconnect() # Odpojíme původní tiché logování
+        self.updater.error.disconnect()
         self.updater.error.connect(lambda msg: QMessageBox.warning(self, "Aktualizace", msg))
         self.updater.check_for_updates()
         
