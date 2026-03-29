@@ -33,7 +33,7 @@ jobs:
         run: pyinstaller --noconfirm main.spec
 
       - name: Rename Artifact
-        run: move dist\main.exe dist\gcode-editor-windows.exe
+        run: move dist\DPI.exe dist\DPI-windows.exe
         shell: cmd
 
       - name: Upload Release Asset
@@ -42,6 +42,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./dist/gcode-editor-windows.exe
-          asset_name: gcode-editor-windows.exe
+          asset_path: ./dist/DPI-windows.exe
+          asset_name: DPI-windows.exe
           asset_content_type: application/octet-stream

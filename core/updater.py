@@ -46,7 +46,7 @@ class AutoUpdater(QThread):
             self._do_download()
 
     def _get_headers(self):
-        headers = {'User-Agent': 'GCode-Editor-Updater'}
+        headers = {'User-Agent': 'DPI-Updater'}
         if self.github_token:
             headers['Authorization'] = f'token {self.github_token}'
         return headers
@@ -160,7 +160,7 @@ class AutoUpdater(QThread):
             script_path = os.path.join(temp_dir, "gcode_editor_update.bat")
             # /timeout /t 3 zajistí, že se aplikace stihne ukončit
             bat_content = f"""@echo off
-echo Aktualizuji Laboratorni 2D Tisk Kapalin...
+echo Aktualizuji Droplet Printing Interface (DPI)...
 echo Prosim cekejte...
 timeout /t 3 /nobreak > NUL
 move /Y "{new_exe_path}" "{current_exe}"
@@ -172,7 +172,7 @@ del "%~f0"
         else:
             script_path = os.path.join(temp_dir, "gcode_editor_update.sh")
             sh_content = f"""#!/bin/bash
-echo "Aktualizuji Laboratorni 2D Tisk Kapalin..."
+echo "Aktualizuji Droplet Printing Interface (DPI)..."
 sleep 3
 mv -f "{new_exe_path}" "{current_exe}"
 chmod +x "{current_exe}"

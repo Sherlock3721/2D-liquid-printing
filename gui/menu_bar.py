@@ -69,9 +69,9 @@ def create_main_menu(main_window):
     # VYLEPŠENO: Krásnější stránka "O aplikaci"
     action_about = QAction("O aplikaci", main_window)
     def show_about():
-        from main import APP_VERSION
+        from main import APP_VERSION, APP_NAME
         about_text = f"""
-        <h2 style='color: #0d6efd;'>Laboratorní 2D Tisk Kapalin</h2>
+        <h2 style='color: #0d6efd;'>{APP_NAME}</h2>
         <p><b>Verze:</b> {APP_VERSION}</p>
         <p>Software navržený pro precizní 2D dávkování a tisk kapalin na laboratorní sklíčka. 
         Obsahuje integrovaný vektorový slicer, přímou komunikaci přes sériovou linku 

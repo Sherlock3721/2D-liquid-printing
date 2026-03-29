@@ -5,7 +5,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget,
                              QHBoxLayout, QMessageBox, QFileDialog)
 from PyQt6.QtCore import Qt
 
-APP_VERSION = "0.1.3"
+APP_VERSION = "0.1.4"
+APP_NAME = "Droplet Printing Interface (DPI)"
 
 from gui.settings import load_settings
 from gui.menu_bar import create_main_menu
@@ -20,7 +21,7 @@ from core.updater import AutoUpdater
 class GCodeApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Laboratorní 2D Tisk Kapalin")
+        self.setWindowTitle(APP_NAME)
         self.resize(1200, 800)
         self.user_scales = {} 
         self.loaded_transforms = None
