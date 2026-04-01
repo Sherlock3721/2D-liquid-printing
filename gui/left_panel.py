@@ -143,6 +143,12 @@ class LeftPanel(QWidget):
         layout_port.addWidget(self.btn_refresh_ports)
         printer_layout.addRow("Port:", layout_port)
         self._refresh_ports()
+        
+        # Výběr Baudrate
+        self.cmb_baud = QComboBox()
+        self.cmb_baud.addItems(["115200", "250000", "57600", "9600"])
+        self.cmb_baud.setCurrentText("115200")
+        printer_layout.addRow("Rychlost (Baud):", self.cmb_baud)
 
         self.btn_connect = QPushButton("Připojit tiskárnu"); self.btn_connect.setStyleSheet("background-color: #0d6efd; color: white;"); main_layout.addWidget(self.btn_connect)
         self.btn_start_print = QPushButton("Start tisku"); self.btn_start_print.setStyleSheet("background-color: #198754; color: white;"); self.btn_start_print.hide(); main_layout.addWidget(self.btn_start_print)
@@ -288,10 +294,12 @@ class LeftPanel(QWidget):
     def set_ui_disconnected(self):
         self.btn_connect.setText("Připojit tiskárnu"); self.btn_connect.setStyleSheet("background-color: #0d6efd; color: white;"); self.btn_start_print.hide(); self.print_controls_widget.hide()
         self.cmb_port.setEnabled(True); self.btn_refresh_ports.setEnabled(True)
+        self.cmb_baud.setEnabled(True)
 
     def set_ui_connected(self):
         self.btn_connect.setText("Odpojit tiskárnu"); self.btn_connect.setStyleSheet("background-color: #6c757d; color: white;"); self.btn_start_print.show(); self.print_controls_widget.hide()
         self.cmb_port.setEnabled(False); self.btn_refresh_ports.setEnabled(False)
+        self.cmb_baud.setEnabled(False)
 
     def set_ui_printing(self):
         self.btn_start_print.hide(); self.print_controls_widget.show()
@@ -348,6 +356,10 @@ class LeftPanel(QWidget):
         if curr_nozzle in self.nozzle_defs:
             self.cmb_nozzle.setCurrentText(curr_nozzle)
         self.cmb_nozzle.blockSignals(False)
+        
+        self._aktualizovat_limit_vzorku()
+        self._update_total_z()
+      self.cmb_nozzle.blockSignals(False)
         
         self._aktualizovat_limit_vzorku()
         self._update_total_z()
