@@ -1,0 +1,11 @@
+Slicko;Nazev;Poznamka;Typ_drzaku;Typ_skla;Sklo_X [mm];Sklo_Y [mm];Sklo_Z [mm];Teplota_podlozky [C];Tryska [mm];Retrakce [mm];Styl_vyplne;Uhel_vyplne;Z-offset [mm];Extruze [ml/mm];Rychlost [mm/min];Hustota_vyplne;Jednotka_vyplne
+1;Sklíčko 1;;Multiplex (více sklíček);Laboratorní Sklo (76 x 26 x 1 mm);76.0;26.0;1.0;0;0.4;1.1;;;0.39999999999999997;0.08;1000;1.0;mm
+2;Sklíčko 2;;Multiplex (více sklíček);Laboratorní Sklo (76 x 26 x 1 mm);76.0;26.0;1.0;0;0.4;1.1;;;0.39999999999999997;0.08;1000;1.0;mm
+3;Sklíčko 3;;Multiplex (více sklíček);Laboratorní Sklo (76 x 26 x 1 mm);76.0;26.0;1.0;0;0.4;1.1;;;0.39999999999999997;0.08;1000;1.0;mm
+4;Sklíčko 4;;Multiplex (více sklíček);Laboratorní Sklo (76 x 26 x 1 mm);76.0;26.0;1.0;0;0.4;1.1;;;0.39999999999999997;0.08;1000;1.0;mm
+5;Sklíčko 5;;Multiplex (více sklíček);Laboratorní Sklo (76 x 26 x 1 mm);76.0;26.0;1.0;0;0.4;1.1;;;0.39999999999999997;0.08;1000;1.0;mm
+6;Sklíčko 6;;Multiplex (více sklíček);Laboratorní Sklo (76 x 26 x 1 mm);76.0;26.0;1.0;0;0.4;1.1;;;0.39999999999999997;0.08;1000;1.0;mm
+7;Sklíčko 7;;Multiplex (více sklíček);Laboratorní Sklo (76 x 26 x 1 mm);76.0;26.0;1.0;0;0.4;1.1;;;0.39999999999999997;0.08;1000;1.0;mm
+8;Sklíčko 8;;Multiplex (více sklíček);Laboratorní Sklo (76 x 26 x 1 mm);76.0;26.0;1.0;0;0.4;1.1;;;0.39999999999999997;0.08;1000;1.0;mm
+9;Sklíčko 9;;Multiplex (více sklíček);Laboratorní Sklo (76 x 26 x 1 mm);76.0;26.0;1.0;0;0.4;1.1;;;0.39999999999999997;0.08;1000;1.0;mm
+10;srgdfg;gdfsgsfdgfdg;Multiplex (více sklíček);Laboratorní Sklo (76 x 26 x 1 mm);76.0;26.0;1.0;0;0.4;1.1;;;0.5;0.1;1111;50.0;%
