@@ -21,6 +21,7 @@
   "default_speed": 1500,
   "default_infill": 1.0,
   "default_density": 0.05,
+  "show_slide_grid": true,
   "nozzle_defs": {
     "Červená": [30.9, 0.3],
     "Modrá": [31.75, 0.41],

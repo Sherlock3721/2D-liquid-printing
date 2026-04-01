@@ -27,7 +27,6 @@ def get_layout_positions(count, slide_w, slide_h, spacing, holder_type, bed_max_
         
         if prime_active:
             # Odpliv: 76x26 otočené na 26x76, posunuté o 20mm vlevo od hlavního skla
-            # Standardní laboratorní sklo je 76x26 (zde otočené)
             p_w, p_h = 26.0, 76.0 
             p_x = main_x - 20.0 - p_w
             positions.append((p_x, start_y, p_w, p_h, True))
@@ -38,21 +37,21 @@ def get_layout_positions(count, slide_w, slide_h, spacing, holder_type, bed_max_
     curr_x = bed_max_x - start_x - slide_w
     curr_y = start_y
     
-    # Pro multiplex přidáme slot pro odpliv, pokud je aktivní
-    actual_count = count + 1 if prime_active else count
+    # První přidáme odpliv, pokud je aktivní
+    if prime_active:
+        positions.append((curr_x, curr_y, slide_w, slide_h, True))
+        curr_y += (slide_h + spacing)
 
-    for i in range(actual_count):
-        is_prime = (prime_active and i == 0)
-        
+    for i in range(count):
         # Pokud přetečeme na výšku dozadu, posuneme se doleva na nový sloupec
-        if curr_y + slide_h > bed_max_y and len(positions) > 0:
+        if curr_y + slide_h > bed_max_y:
             curr_x -= (slide_w + spacing)
             curr_y = start_y
 
         if curr_x < 0:
             break
 
-        positions.append((curr_x, curr_y, slide_w, slide_h, is_prime))
+        positions.append((curr_x, curr_y, slide_w, slide_h, False))
         curr_y += (slide_h + spacing)
 
     return positions

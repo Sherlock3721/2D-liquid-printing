@@ -46,22 +46,44 @@ def generate_gcode(logic, params):
     positions = get_layout_positions(pocet_vzorku, slide_w, slide_h, spacing, typ_drzaku, settings["bed_max_x"], settings["bed_max_y"], prime_active=prime_active)
 
     measurement_idx = 0
+    infill_style = params.get('infill_style', 'S okraji')
 
     for i, (posun_x, posun_y, sw, sh, is_prime) in enumerate(positions):
         if is_prime:
-            result.append(f"\n; --- VZOREK {i+1} (ODPLIV) ---\n")
+            result.append(f"\n; --- VZOREK (ODPLIV) ---\n")
         else:
-            result.append(f"\n; --- VZOREK {i+1} (MĚŘENÍ {measurement_idx+1}) ---\n")
+            result.append(f"\n; --- VZOREK {measurement_idx + 1} ---\n")
             
         result.append(settings["loop_start_gcode"])
         if not result[-1].endswith("\n"): result.append("\n")
 
-        loc_z = slide_overrides.get(measurement_idx if not is_prime else 0, {}).get('z_offset', z_offset)
-        loc_ext = slide_overrides.get(measurement_idx if not is_prime else 0, {}).get('extrusion_rate', extrusion_rate)
-        loc_spd = print_speed
+        # Overrides se vztahují pouze na reálná měření, nikoliv na odpliv
+        current_overrides = slide_overrides.get(str(measurement_idx) if not is_prime else "-1", {})
+        loc_z = current_overrides.get('z_offset', z_offset)
+        loc_ext = current_overrides.get('extrusion_rate', extrusion_rate)
+        loc_spd = current_overrides.get('print_speed', print_speed)
+        loc_infill_style = current_overrides.get('infill_style', infill_style)
         
         loc_e_per_mm = loc_ext / area
         print_z = surface_z + loc_z
+
+        # Kešování parametrů transformace
+        t = transforms[measurement_idx] if transforms and not is_prime and measurement_idx < len(transforms) else None
+        S = t['scale'] if t else 1.0
+        gui_dx = t['gui_dx'] if t else 0.0
+        gui_dy = t['gui_dy'] if t else 0.0
+        cx_t = t['cx'] if t else 0.0
+        cy_t = t['cy'] if t else 0.0
+        bed_y = settings["bed_max_y"]
+
+        def transform_pt(x_orig, y_orig):
+            phys_x_base = posun_x + x_orig
+            phys_y_base = posun_y + y_orig
+            gui_x_base = phys_x_base
+            gui_y_base = bed_y - phys_y_base
+            gui_x_new = (gui_x_base - cx_t) * S + cx_t + gui_dx
+            gui_y_new = (gui_y_base - cy_t) * S + cy_t + gui_dy
+            return gui_x_new, bed_y - gui_y_new
 
         if is_prime:
             # Sekvence pro odpliv: čtverec 10x10 mm uprostřed skla
@@ -81,24 +103,6 @@ def generate_gcode(logic, params):
             result.append(f"G1 X{x1:.3f} Y{y1:.3f} E{e_seg:.5f} F{loc_spd}\n")
             result.append(f"G0 Z{print_z + 2.0:.3f} F1000\n")
         else:
-            t = transforms[measurement_idx] if transforms and measurement_idx < len(transforms) else None
-            S = t['scale'] if t else 1.0
-            gui_dx = t['gui_dx'] if t else 0.0
-            gui_dy = t['gui_dy'] if t else 0.0
-            cx_t = t['cx'] if t else 0.0
-            cy_t = t['cy'] if t else 0.0
-
-            def transform_pt(x_orig, y_orig):
-                phys_x_base = posun_x + x_orig
-                phys_y_base = posun_y + y_orig
-                gui_x_base = phys_x_base
-                gui_y_base = settings["bed_max_y"] - phys_y_base
-                gui_x_new = (gui_x_base - cx_t) * S + cx_t + gui_dx
-                gui_y_new = (gui_y_base - cy_t) * S + cy_t + gui_dy
-                phys_x_final = gui_x_new
-                phys_y_final = settings["bed_max_y"] - gui_y_new
-                return phys_x_final, phys_y_final
-
             if logic.is_vector:
                 result.append("M83 ; Prepnuti na relativni extruzi pro vektory\n")
                 result.append("G92 E0.0 ; Reset extruderu pro toto sklicko\n")
@@ -114,8 +118,8 @@ def generate_gcode(logic, params):
                     if not px: continue
                     abs_x, abs_y = transform_pt(px[0], py[0])
                     
-                    if infill_style == "Dot Dispenser" and len(px) == 2 and px[0] == px[1]:
-                        # SPECIÁLNÍ REŽIM: DOT DISPENSER (Dávkování kapek)
+                    if loc_infill_style == "Tečky" and len(px) == 2 and px[0] == px[1]:
+                        # SPECIÁLNÍ REŽIM: Tečky (Dávkování kapek)
                         # loc_ext v tomto případě interpretujeme jako µl na jednu kapku
                         dot_e = loc_ext / area 
                         

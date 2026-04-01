@@ -93,23 +93,23 @@ class ManualMovementWidget(QWidget):
         service_layout = QHBoxLayout()
         self.btn_leveling = QPushButton("MĚŘENÍ PODLOŽKY (G80)")
         self.btn_leveling.setFixedHeight(40)
-        self.btn_leveling.clicked.connect(lambda: self.send_gcode("G80"))
+        self.btn_leveling.clicked.connect(lambda checked: self.send_gcode("G80"))
         self.btn_motors_off = QPushButton("VYPNOUT MOTORY")
         self.btn_motors_off.setFixedHeight(40)
-        self.btn_motors_off.clicked.connect(lambda: self.send_gcode("M84"))
+        self.btn_motors_off.clicked.connect(lambda checked: self.send_gcode("M84"))
         service_layout.addWidget(self.btn_leveling)
         service_layout.addWidget(self.btn_motors_off)
         self.main_layout.addLayout(service_layout)
 
         # Propojení pohybu
-        self.btn_x_plus.clicked.connect(lambda: self.move("X", 1))
-        self.btn_x_minus.clicked.connect(lambda: self.move("X", -1))
-        self.btn_y_plus.clicked.connect(lambda: self.move("Y", 1))
-        self.btn_y_minus.clicked.connect(lambda: self.move("Y", -1))
-        self.btn_z_plus.clicked.connect(lambda: self.move("Z", 1))
-        self.btn_z_minus.clicked.connect(lambda: self.move("Z", -1))
-        self.btn_home_xy.clicked.connect(lambda: self.send_gcode("G28 X Y"))
-        self.btn_z_home.clicked.connect(lambda: self.send_gcode("G28 Z"))
+        self.btn_x_plus.clicked.connect(lambda checked: self.move("X", 1))
+        self.btn_x_minus.clicked.connect(lambda checked: self.move("X", -1))
+        self.btn_y_plus.clicked.connect(lambda checked: self.move("Y", 1))
+        self.btn_y_minus.clicked.connect(lambda checked: self.move("Y", -1))
+        self.btn_z_plus.clicked.connect(lambda checked: self.move("Z", 1))
+        self.btn_z_minus.clicked.connect(lambda checked: self.move("Z", -1))
+        self.btn_home_xy.clicked.connect(lambda checked: self.send_gcode("G28 X Y"))
+        self.btn_z_home.clicked.connect(lambda checked: self.send_gcode("G28 Z"))
 
     def _apply_styles(self):
         self.setStyleSheet("""

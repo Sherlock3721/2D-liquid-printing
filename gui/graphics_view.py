@@ -150,9 +150,15 @@ class DraggableGCode(QGraphicsItemGroup):
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange and not self.is_resizing:
-            self.prepareGeometryChange()
-
+            from PyQt6.QtWidgets import QApplication
             new_pos = value
+            
+            # PŘICHYTÁVÁNÍ K MŘÍŽCE (Ctrl)
+            if QApplication.keyboardModifiers() & Qt.KeyboardModifier.ControlModifier:
+                new_pos.setX(round(new_pos.x()))
+                new_pos.setY(round(new_pos.y()))
+
+            self.prepareGeometryChange()
             delta = new_pos - self.pos()
             
             current_scene_rect = self.mapToScene(self.childrenBoundingRect()).boundingRect()
@@ -233,6 +239,7 @@ class InteractiveGraphicsView(QGraphicsView):
 
         pen_print = QPen(QColor(255, 30, 30), 0.4)
         pen_print.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen_travel = QPen(QColor(150, 0, 0), 0.2, Qt.PenStyle.DashLine)
 
         for data in state:
             i = data['index']
@@ -244,16 +251,28 @@ class InteractiveGraphicsView(QGraphicsView):
                 px_list, py_list = logic.path_x, logic.path_y
                 
             path_print = QPainterPath()
+            path_travel = QPainterPath()
             gx, gy = data['allowed_rect'].x(), data['allowed_rect'].y()
             
+            last_pt = None
             for px, py in zip(px_list, py_list):
+                if last_pt:
+                    path_travel.moveTo(last_pt[0] + gx, gy + last_pt[1])
+                    path_travel.lineTo(px[0] + gx, gy + py[0])
+                
                 path_print.moveTo(px[0] + gx, gy + py[0])
                 for x, y in zip(px[1:], py[1:]):
-                    path_print.lineTo(x + gx, gy + y)                
+                    path_print.lineTo(x + gx, gy + y)
+                last_pt = (px[-1], py[-1])
             
+            item_travel = QGraphicsPathItem(path_travel)
+            item_travel.setPen(pen_travel)
+            movable_group.addToGroup(item_travel)
+
             item_print = QGraphicsPathItem(path_print)
             item_print.setPen(pen_print)
             movable_group.addToGroup(item_print)
+            
             movable_group.setZValue(1)
             movable_group.setTransformOriginPoint(item_print.boundingRect().topLeft())
             
@@ -457,6 +476,11 @@ class InteractiveGraphicsView(QGraphicsView):
         font.setPointSize(8)
         painter.setFont(font)
 
+        from gui.settings import load_settings
+        settings = load_settings()
+        if not settings.get("show_slide_grid", True):
+            return
+
         scene_rect_vis = self.mapToScene(view_rect).boundingRect()
         for sx, sy, sw, sh in self.slides_info:
             if not (sx > scene_rect_vis.right() or sx + sw < scene_rect_vis.left() or 
@@ -517,6 +541,7 @@ class InteractiveGraphicsView(QGraphicsView):
         if logic.filepath:
             nozzle_diam = params.get('nozzle_diam', 0.4)    
             pen_print = QPen(QColor(255, 30, 30), nozzle_diam); pen_print.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen_travel = QPen(QColor(150, 0, 0), nozzle_diam/2, Qt.PenStyle.DashLine)
             
             # Tiskeme pouze na měřicí skla
             measurement_positions = [(p, idx) for idx, p in enumerate(positions) if not p[4]]
@@ -534,15 +559,29 @@ class InteractiveGraphicsView(QGraphicsView):
                     px_list = logic.path_x; py_list = logic.path_y
                     
                 path_print = QPainterPath()
+                path_travel = QPainterPath()
+                last_pt = None
+                
                 for px, py in zip(px_list, py_list):
+                    # Přesun k novému segmentu
+                    if last_pt:
+                        path_travel.moveTo(last_pt[0] + gx, view_y(last_pt[1] + gy))
+                        path_travel.lineTo(px[0] + gx, view_y(py[0] + gy))
+
                     if len(px) == 2 and px[0] == px[1]:
-                        # Vizualizace kapky: malý kroužek o průměru trysky (nebo aspoň 1mm pro viditelnost)
+                        # Vizualizace kapky: malý kroužek o průměru trysky
                         r = max(0.5, nozzle_diam / 2.0)
                         path_print.addEllipse(QPointF(px[0] + gx, view_y(py[0] + gy)), r, r)
                     else:
                         path_print.moveTo(px[0] + gx, view_y(py[0] + gy))
                         for x, y in zip(px[1:], py[1:]):
-                            path_print.lineTo(x + gx, view_y(y + gy))                
+                            path_print.lineTo(x + gx, view_y(y + gy))
+                    last_pt = (px[-1], py[-1])
+
+                item_travel = QGraphicsPathItem(path_travel)
+                item_travel.setPen(pen_travel)
+                movable_group.addToGroup(item_travel)
+
                 item_print = QGraphicsPathItem(path_print)
                 item_print.setPen(pen_print)
                 

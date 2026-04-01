@@ -113,7 +113,7 @@ class LeftPanel(QWidget):
 
         main_layout.addLayout(self.form_layout)
         self.form_layout.addRow(QLabel("<b>--- Vektorové výplně ---</b>"))
-        self.cmb_infill_style = QComboBox(); self.cmb_infill_style.addItems(["S okraji", "Bez okrajů", "Okraje", "Had", "Dot Dispenser"])
+        self.cmb_infill_style = QComboBox(); self.cmb_infill_style.addItems(["S okraji", "Bez okrajů", "Okraje", "Had", "Tečky"])
         self.form_layout.addRow("Styl výplně:", self.cmb_infill_style)
         self.widget_infill = QWidget()
         layout_infill = QHBoxLayout(self.widget_infill)
@@ -284,3 +284,29 @@ class LeftPanel(QWidget):
         slide_z = params.get('slide_z', 1.0); layer_z = params.get('z_offset', 0.2)
         total_z = holder_z + slide_z + layer_z + correction_z
         self.lbl_total_z.setText(f"{total_z:.2f} mm")
+
+    def refresh_settings(self):
+        """Znovu načte seznamy skel a trysek z nastavení."""
+        self.settings = load_settings()
+        self.sklo_dims = self.settings.get("sklo_dims", {})
+        self.nozzle_defs = self.settings.get("nozzle_defs", {})
+        
+        # Aktualizace ComboBoxů při zachování vybrané hodnoty pokud existuje
+        curr_glass = self.cmb_glass.currentText()
+        self.cmb_glass.blockSignals(True)
+        self.cmb_glass.clear()
+        self.cmb_glass.addItems(list(self.sklo_dims.keys()))
+        if curr_glass in self.sklo_dims:
+            self.cmb_glass.setCurrentText(curr_glass)
+        self.cmb_glass.blockSignals(False)
+        
+        curr_nozzle = self.cmb_nozzle.currentText()
+        self.cmb_nozzle.blockSignals(True)
+        self.cmb_nozzle.clear()
+        self.cmb_nozzle.addItems(list(self.nozzle_defs.keys()))
+        if curr_nozzle in self.nozzle_defs:
+            self.cmb_nozzle.setCurrentText(curr_nozzle)
+        self.cmb_nozzle.blockSignals(False)
+        
+        self._aktualizovat_limit_vzorku()
+        self._update_total_z()

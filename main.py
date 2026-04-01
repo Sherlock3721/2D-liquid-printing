@@ -4,9 +4,18 @@ import json
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, 
                              QHBoxLayout, QMessageBox, QFileDialog)
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 
-APP_VERSION = "0.1.4"
+APP_VERSION = "0.1.5"
 APP_NAME = "Droplet Printing Interface (DPI)"
+APP_ID = f"cz.vut.droplet_printer.{APP_VERSION}" # Jedinečné ID aplikace pro Windows Taskbar
+
+if sys.platform.startswith("win"):
+    import ctypes
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
+    except Exception as e:
+        print("Failed to set AppUserModelID:", e)
 
 from gui.settings import load_settings
 from gui.menu_bar import create_main_menu
@@ -23,6 +32,12 @@ class GCodeApp(QMainWindow):
         super().__init__()
         self.setWindowTitle(APP_NAME)
         self.resize(1200, 800)
+        
+        # Nastavení ikony okna
+        icon_path = os.path.join(os.getcwd(), "icon.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        
         self.user_scales = {} 
         self.loaded_transforms = None
 
@@ -415,6 +430,12 @@ class GCodeApp(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion") 
+    
+    # Nastavení globální ikony aplikace
+    icon_path = os.path.join(os.getcwd(), "icon.ico")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+
     app.setStyleSheet("""
         QWidget { background-color: #2b2b2b; color: #e0e0e0; font-family: 'FiraSans', sans-serif; font-size: 10pt; }
         QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {

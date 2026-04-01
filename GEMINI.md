@@ -8,7 +8,7 @@ The application allows researchers to:
 - **Import Designs:** Support for SVG, DXF, and raw G-code.
 - **Configure Lab Substrates:** Presets for standard lab glass (76x26mm), FTO glass, and custom dimensions.
 - **Multiplex Printing:** Automatically layout multiple samples across the printer bed with defined spacing.
-- **Dot Dispensing:** (In development) Precise droplet dispensing from vector points/circles.
+- **Tečky (tečkování):** (Ve vývoji) Přesné dávkování kapek z vektorových bodů/kružnic.
 - **Research-Grade Parameters:** Control extrusion in microliters per millimeter (µl/mm), Z-offsets for thin-film deposition, and complex infill styles.
 - **Direct Control:** Integrated serial terminal and worker for real-time printer communication (Marlin/Prusa compatible) with instant stop (M410) and pause (M601/M602) support.
 - **Data Persistence:** Exports G-code with embedded JSON metadata for perfect state reproduction and CSV protocols for experimental logging.
@@ -26,7 +26,7 @@ The application allows researchers to:
 - `core/logic.py`: High-level orchestration, file loading, and multiplex layout mathematics.
 - `core/gcode_generator.py`: Generates final G-code strings. Applies Z-heights and transformations.
 - `core/vector_slicer.py`: Converts SVG/DXF vectors into printable paths with custom infills.
-- `core/dot_dispenser.py`: (Planned/WIP) Logic for point-by-point liquid dispensing.
+- `core/tecky.py`: (Plánováno/WIP) Logika pro bodové dávkování kapalin.
 - `core/csv_exporter.py`: Generates experimental protocols.
 
 ### Communication

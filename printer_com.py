@@ -1,5 +1,6 @@
 import time
 import serial
+import serial.tools.list_ports
 import re
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -9,9 +10,9 @@ class SerialPrinterWorker(QThread):
     progress_changed = pyqtSignal(int)
     pos_changed = pyqtSignal(float, float, bool)
 
-    def __init__(self, port='/dev/ttyACM0', baudrate=115200):
+    def __init__(self, baudrate=115200):
         super().__init__()
-        self.port = port
+        self.port = None
         self.baudrate = baudrate
         self.serial_conn = None
         self.gcode_lines = []
@@ -20,16 +21,27 @@ class SerialPrinterWorker(QThread):
         self.is_paused = False
 
     def connect_printer(self):
-        try:
-            self.serial_conn = serial.Serial(self.port, self.baudrate, timeout=1)
-            time.sleep(2)
-            # Vyčištění případného harampádí na lince po připojení
-            self.serial_conn.reset_input_buffer()
-            self.status_changed.emit("Připojeno")
-            return True
-        except Exception as e:
-            self.status_changed.emit(f"Chyba připojení: {e}")
+        """Pokusí se automaticky najít a připojit tiskárnu."""
+        ports = list(serial.tools.list_ports.comports())
+        if not ports:
+            self.status_changed.emit("Chyba: Žádné porty nenalezeny")
             return False
+
+        # Zkusíme najít port, který vypadá jako tiskárna (USB Serial)
+        for p in ports:
+            try:
+                self.port = p.device
+                self.status_changed.emit(f"Zkouším port {self.port}...")
+                self.serial_conn = serial.Serial(self.port, self.baudrate, timeout=1)
+                time.sleep(2)
+                self.serial_conn.reset_input_buffer()
+                self.status_changed.emit("Připojeno")
+                return True
+            except Exception:
+                continue
+
+        self.status_changed.emit("Chyba: Tiskárna nenalezena")
+        return False
 
     def print_file(self, filepath):
         self.gcode_lines = []
