@@ -473,7 +473,7 @@ if __name__ == "__main__":
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
 
-    app.setStyleSheet(\"\"\"
+    app.setStyleSheet("""
         QWidget { background-color: #2b2b2b; color: #e0e0e0; font-family: 'FiraSans', sans-serif; font-size: 10pt; }
         QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
             background-color: #3c3c3c; border: 1px solid #555; padding: 5px; border-radius: 4px;
@@ -491,7 +491,8 @@ if __name__ == "__main__":
         QMenuBar::item:selected { background-color: #3c3c3c; border-radius: 4px; }
         QMenu { background-color: #2b2b2b; border: 1px solid #444; }
         QMenu::item:selected { background-color: #0d6efd; }
-    \"\"\")
+    """)
     window = GCodeApp()
     window.show()
     sys.exit(app.exec())
+ec())
