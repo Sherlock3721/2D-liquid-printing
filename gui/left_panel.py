@@ -359,7 +359,3 @@ class LeftPanel(QWidget):
         
         self._aktualizovat_limit_vzorku()
         self._update_total_z()
-      self.cmb_nozzle.blockSignals(False)
-        
-        self._aktualizovat_limit_vzorku()
-        self._update_total_z()

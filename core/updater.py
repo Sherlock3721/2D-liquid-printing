@@ -160,16 +160,33 @@ class AutoUpdater(QThread):
             script_path = os.path.join(temp_dir, "gcode_editor_update.bat")
             # /timeout /t 3 zajistí, že se aplikace stihne ukončit
             bat_content = f"""@echo off
+setlocal
 echo Aktualizuji Droplet Printing Interface (DPI)...
-echo Prosim cekejte...
+echo Prosim cekejte, dokud se okno samo nezavre...
+
+rem Pokusime se aplikaci ukoncet pokud bezi
+taskkill /IM main.exe /F > NUL 2>&1
+taskkill /IM DPI.exe /F > NUL 2>&1
+
+set "RETRY=0"
 :loop
+set /a RETRY+=1
+if %RETRY% GTR 20 (
+    echo CHYBA: Nepodarilo se nahradit soubor po 20 pokusech.
+    pause
+    exit /b 1
+)
+
 timeout /t 1 /nobreak > NUL
 move /Y "{new_exe_path}" "{current_exe}"
 if errorlevel 1 (
-    echo Aplikace stale bezi, zkousim znovu...
+    echo Aplikace je stale blokovana, pokus %RETRY% z 20...
     goto loop
 )
+
+echo Aktualizace byla uspesna. Spoustim novou verzi...
 start "" "{current_exe}"
+endlocal
 del "%~f0"
 """
             with open(script_path, "w", encoding="cp1250") as f:

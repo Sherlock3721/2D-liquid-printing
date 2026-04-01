@@ -141,10 +141,14 @@ class SettingsDialog(QDialog):
         self.chk_show_grid = QCheckBox("Zobrazit mřížku u sklíček v náhledu")
         self.chk_show_grid.setChecked(self.settings.get("show_slide_grid", True))
         
+        self.chk_show_axes = QCheckBox("Zobrazit hlavní osy (X, Y) tiskárny")
+        self.chk_show_axes.setChecked(self.settings.get("show_bed_axes", True))
+        
         hw_form.addRow("Max šířka (X) [mm]:", self.inp_bed_x); hw_form.addRow("Max hloubka (Y) [mm]:", self.inp_bed_y)
         hw_form.addRow("Odsazení (X okraj) [mm]:", self.inp_start_x); hw_form.addRow("Odsazení (Y okraj) [mm]:", self.inp_start_y)
         hw_form.addRow("Mezera mezi sklíčky [mm]:", self.inp_spacing); hw_form.addRow("<b>Korekce Z [mm]:</b>", self.inp_correction_z)
         hw_form.addRow(self.chk_show_grid)
+        hw_form.addRow(self.chk_show_axes)
         
         lay_hw.addLayout(hw_form)
         lay_hw.addStretch()
@@ -250,6 +254,7 @@ class SettingsDialog(QDialog):
             "start_offset_x": self.inp_start_x.value(), "start_offset_y": self.inp_start_y.value(),
             "multi_spacing": self.inp_spacing.value(), "correction_z": self.inp_correction_z.value(),
             "show_slide_grid": self.chk_show_grid.isChecked(),
+            "show_bed_axes": self.chk_show_axes.isChecked(),
             "print_speed": self.inp_speed.value(), "retraction": self.inp_retract.value(),
             "start_gcode": self.txt_start.toPlainText(), "end_gcode": self.txt_end.toPlainText(),
             "loop_start_gcode": self.txt_loop_start.toPlainText(), "loop_end_gcode": self.txt_loop_end.toPlainText(),

@@ -2,6 +2,15 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [0.1.15] - 2026-04-01
+
+### 🚀 Novinky a vylepšení
+*   **Nastavení zobrazení plochy:** V pokročilém nastavení nyní můžete vypnout/zapnout zobrazení hlavních os (X, Y) tiskárny pro čistší náhled.
+*   **Robustnější Updater (Windows):** Vylepšen mechanismus aktualizace na Windows. Updater se nyní aktivně pokusí ukončit běžící procesy aplikace před instalací nové verze a lépe ošetřuje případy, kdy je soubor blokován.
+
+### 🛠 Opravy chyb
+*   **Oprava pádu (IndentationError):** Odstraněna syntaktická chyba v levém panelu, která znemožňovala spuštění aplikace.
+
 ## [0.1.14] - 2026-04-01
 
 ### 🚀 Novinky a vylepšení

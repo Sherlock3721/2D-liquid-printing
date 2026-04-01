@@ -467,17 +467,19 @@ class InteractiveGraphicsView(QGraphicsView):
                         painter.drawLine(int(draw_x), int(vy), int(draw_x + 4 * tick_dir), int(vy))
                 curr_val += minor_step
 
-        pen_main = QPen(QColor(150, 150, 150, 200), 1)
-        draw_x_axis(self.bed_h, 0, self.bed_w, 0, self.bed_w, pen_main)
-        draw_y_axis(0, self.bed_h, 0, 0, self.bed_h, pen_main)
+        from gui.settings import load_settings
+        settings = load_settings()
+        
+        if settings.get("show_bed_axes", True):
+            pen_main = QPen(QColor(150, 150, 150, 200), 1)
+            draw_x_axis(self.bed_h, 0, self.bed_w, 0, self.bed_w, pen_main)
+            draw_y_axis(0, self.bed_h, 0, 0, self.bed_h, pen_main)
 
         pen_slide = QPen(QColor(150, 220, 150, 220), 1)
         font = painter.font()
         font.setPointSize(8)
         painter.setFont(font)
 
-        from gui.settings import load_settings
-        settings = load_settings()
         if not settings.get("show_slide_grid", True):
             return
 
