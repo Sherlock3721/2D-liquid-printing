@@ -109,7 +109,7 @@ class GCodeLogic:
             cur_x, cur_y = 0.0, 0.0
             current_segment_x, current_segment_y = [], []
             
-            with open(path, 'r') as f:
+            with open(path, 'r', encoding='utf-8') as f:
                 for line in f:
                     self.original_lines.append(line)
                     clean_line = line.split(';')[0].upper().strip()

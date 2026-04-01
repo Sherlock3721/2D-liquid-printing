@@ -162,8 +162,13 @@ class AutoUpdater(QThread):
             bat_content = f"""@echo off
 echo Aktualizuji Droplet Printing Interface (DPI)...
 echo Prosim cekejte...
-timeout /t 3 /nobreak > NUL
+:loop
+timeout /t 1 /nobreak > NUL
 move /Y "{new_exe_path}" "{current_exe}"
+if errorlevel 1 (
+    echo Aplikace stale bezi, zkousim znovu...
+    goto loop
+)
 start "" "{current_exe}"
 del "%~f0"
 """
