@@ -2,6 +2,13 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [0.1.14] - 2026-04-01
+
+### 🚀 Novinky a vylepšení
+*   **Volba přenosové rychlosti (Baudrate):** Do ovládání tiskárny byla přidána možnost zvolit rychlost komunikace (standardně 115200 nebo 250000). To je klíčové pro tiskárny, které nevyužívají výchozí rychlost.
+*   **Stabilnější inicializace spojení:** Přidána povinná prodleva 2,5 sekundy po otevření portu, která dává tiskárně čas na restart a náběh firmwaru před prvním příkazem. Tím se řeší chyba "Tiskárna neodpovídá".
+*   **Robustnější čtení odpovědí:** Zlepšen mechanismus ověřování spojení pro lepší kompatibilitu s různými verzemi firmwaru Marlin a Prusa.
+
 ## [0.1.13] - 2026-04-01
 
 ### 🛠 Opravy chyb

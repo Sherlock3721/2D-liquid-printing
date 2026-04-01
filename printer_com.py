@@ -23,7 +23,10 @@ class SerialPrinterWorker(QThread):
     def connect_printer(self, manual_port=None):
         """Pokusí se připojit k tiskárně (automaticky nebo na zvolený port)."""
         if manual_port:
-            ports = [serial.tools.list_ports_common.ListPortInfo(manual_port)]
+            # Vytvoříme pomocný objekt pro kompatibilitu s cyklem
+            class DummyPort: pass
+            p = DummyPort(); p.device = manual_port
+            ports = [p]
         else:
             ports = list(serial.tools.list_ports.comports())
             
@@ -36,25 +39,29 @@ class SerialPrinterWorker(QThread):
                 self.port = p.device
                 self.status_changed.emit(f"Prověřuji {self.port}...")
                 
-                # Na Windows může tiskárna po otevření portu provést reset (DTR).
-                # Musíme počkat, než se probere z bootloaderu.
-                self.serial_conn = serial.Serial(self.port, self.baudrate, timeout=1, write_timeout=1)
+                # Otevřeme port. timeout=2 je důležitý pro readline
+                self.serial_conn = serial.Serial(self.port, self.baudrate, timeout=2, write_timeout=2)
                 
-                # Čekáme na "probuzení" tiskárny (cca 3 sekundy)
+                # 1. Počkej, až se tiskárna vzpamatuje z resetu (DTR/RTS)
+                time.sleep(2.5)
+                self.serial_conn.reset_input_buffer()
+                
+                # 2. Zkus poslat M115 a čekej na odpověď
+                self.serial_conn.write(b"\nM115\n")
+                
                 start_time = time.time()
                 verified = False
                 
-                while time.time() - start_time < 4:
-                    self.serial_conn.write(b"M115\n")
-                    time.sleep(0.5)
-                    response = self.serial_conn.read_all().decode('utf-8', errors='ignore')
-                    
-                    if "ok" in response.lower() or "marlin" in response.lower() or "prusa" in response.lower() or "cap:" in response.lower():
-                        verified = True
-                        break
+                # Budeme číst řádky po dobu 3 sekund
+                while time.time() - start_time < 3:
+                    if self.serial_conn.in_waiting > 0:
+                        line = self.serial_conn.readline().decode('utf-8', errors='ignore').lower()
+                        if any(x in line for x in ["ok", "marlin", "prusa", "cap:", "start", "echo:"]):
+                            verified = True
+                            break
+                    time.sleep(0.1)
                 
                 if verified:
-                    self.serial_conn.reset_input_buffer()
                     self.status_changed.emit("Připojeno")
                     return True
                 else:
@@ -62,6 +69,8 @@ class SerialPrinterWorker(QThread):
                     self.serial_conn = None
             except Exception as e:
                 print(f"Chyba na portu {p.device}: {e}")
+                if self.serial_conn: self.serial_conn.close()
+                self.serial_conn = None
                 continue
 
         self.status_changed.emit("Chyba: Tiskárna neodpovídá")
