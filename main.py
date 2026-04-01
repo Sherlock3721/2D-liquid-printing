@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget,
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
-APP_VERSION = "0.1.10"
+APP_VERSION = "0.1.11"
 APP_NAME = "Droplet Printing Interface (DPI)"
 APP_ID = f"cz.vut.droplet_printer.{APP_VERSION}" # Jedinečné ID aplikace pro Windows Taskbar
 
@@ -495,4 +495,4 @@ if __name__ == "__main__":
     window = GCodeApp()
     window.show()
     sys.exit(app.exec())
-ec())
+

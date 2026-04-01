@@ -2,6 +2,11 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [0.1.11] - 2026-04-01
+
+### 🛠 Opravy chyb (Hotfix)
+*   **Kritická oprava syntaxe:** Opakované odstranění poškozeného konce souboru `main.py`, který znemožňoval kompilaci.
+
 ## [0.1.10] - 2026-04-01
 
 ### 🛠 Opravy chyb (Hotfix)
