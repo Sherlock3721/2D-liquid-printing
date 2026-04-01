@@ -2,6 +2,11 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [0.1.10] - 2026-04-01
+
+### 🛠 Opravy chyb (Hotfix)
+*   **Oprava SyntaxError (podruhé):** Odstranění zbytkového kódu na konci souboru `main.py`, který způsoboval pád sestavení.
+
 ## [0.1.9] - 2026-04-01
 
 ### 🛠 Opravy chyb (Hotfix)
