@@ -2,6 +2,16 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [0.1.7] - 2026-04-01
+
+### 🚀 Novinky a vylepšení
+*   **Manuální výběr portu:** Do levého panelu byl přidán rozbalovací seznam (ComboBox) se všemi dostupnými COM porty a tlačítko pro jejich aktualizaci. Uživatel tak může ručně vybrat správný port, pokud automatická detekce selže.
+*   **Validace spojení s tiskárnou:** Připojení k tiskárně je nyní robustnější. Aplikace po otevření portu pošle příkaz `M115` a čeká na potvrzení od tiskárny. Tím se eliminuje "falešné připojení" k nesprávným portům (např. Bluetooth), které se na Windows často vyskytuje.
+*   **Ošetření DTR resetu:** Byl prodloužen časový limit pro navázání prvního kontaktu po otevření portu na 4 sekundy, což dává tiskárně dostatek času na restart po připojení k PC.
+
+### 🛠 Opravy chyb (Bug Fixes)
+*   **Falešné připojení na Windows:** Opravena chyba, kdy se aplikace tvářila jako připojená, i když tiskárna nebyla fyzicky přítomna.
+
 ## [0.1.6] - 2026-04-01
 
 ### 🚀 Novinky a vylepšení

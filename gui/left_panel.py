@@ -1,3 +1,4 @@
+import serial.tools.list_ports
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QHBoxLayout, QComboBox, 
                              QSpinBox, QDoubleSpinBox, QLineEdit, QLabel, 
                              QPushButton, QFrame, QProgressBar)
@@ -130,6 +131,19 @@ class LeftPanel(QWidget):
         printer_layout = QFormLayout()
         printer_layout.addRow(QLabel("<b>--- Ovládání tiskárny ---</b>"))
         self.lbl_status = QLabel("Stav: Odpojeno"); printer_layout.addRow(self.lbl_status)
+        
+        # Výběr portu
+        layout_port = QHBoxLayout()
+        self.cmb_port = QComboBox()
+        self.cmb_port.addItem("Automaticky")
+        self.btn_refresh_ports = QPushButton("🔄")
+        self.btn_refresh_ports.setFixedWidth(30)
+        self.btn_refresh_ports.clicked.connect(self._refresh_ports)
+        layout_port.addWidget(self.cmb_port)
+        layout_port.addWidget(self.btn_refresh_ports)
+        printer_layout.addRow("Port:", layout_port)
+        self._refresh_ports()
+
         self.btn_connect = QPushButton("Připojit tiskárnu"); self.btn_connect.setStyleSheet("background-color: #0d6efd; color: white;"); main_layout.addWidget(self.btn_connect)
         self.btn_start_print = QPushButton("Start tisku"); self.btn_start_print.setStyleSheet("background-color: #198754; color: white;"); self.btn_start_print.hide(); main_layout.addWidget(self.btn_start_print)
         self.print_controls_widget = QWidget()
@@ -205,6 +219,21 @@ class LeftPanel(QWidget):
         self._last_bed_temp = self.inp_bed_temp.value()
         self.values_changed.emit()
             
+    def _refresh_ports(self):
+        """Aktualizuje seznam dostupných COM portů."""
+        current_selection = self.cmb_port.currentText()
+        self.cmb_port.blockSignals(True)
+        self.cmb_port.clear()
+        self.cmb_port.addItem("Automaticky")
+        
+        ports = list(serial.tools.list_ports.comports())
+        for p in ports:
+            self.cmb_port.addItem(p.device)
+            
+        if current_selection in [self.cmb_port.itemText(i) for i in range(self.cmb_port.count())]:
+            self.cmb_port.setCurrentText(current_selection)
+        self.cmb_port.blockSignals(False)
+
     def update_status(self, msg):
         self.lbl_status.setText(f"Stav: {msg}")
         if msg == "Připojeno" or msg in ("Tisk dokončen", "Tisk zrušen"):
@@ -213,8 +242,18 @@ class LeftPanel(QWidget):
             self.lbl_status.setStyleSheet("color: #dc3545; font-weight: bold;"); self.set_ui_disconnected()
             
     def toggle_connection(self):
-        if self.worker.serial_conn and self.worker.serial_conn.is_open: self.worker.stop()
-        else: self.worker.connect_printer()
+        if self.worker.serial_conn and self.worker.serial_conn.is_open:
+            self.worker.stop()
+            if self.worker.serial_conn:
+                self.worker.serial_conn.close()
+                self.worker.serial_conn = None
+            self.update_status("Odpojeno")
+        else:
+            selected_port = self.cmb_port.currentText()
+            if selected_port == "Automaticky":
+                self.worker.connect_printer(None)
+            else:
+                self.worker.connect_printer(selected_port)
 
     def open_feedback(self):
         dialog = FeedbackDialog(self); dialog.exec()
@@ -248,9 +287,11 @@ class LeftPanel(QWidget):
 
     def set_ui_disconnected(self):
         self.btn_connect.setText("Připojit tiskárnu"); self.btn_connect.setStyleSheet("background-color: #0d6efd; color: white;"); self.btn_start_print.hide(); self.print_controls_widget.hide()
+        self.cmb_port.setEnabled(True); self.btn_refresh_ports.setEnabled(True)
 
     def set_ui_connected(self):
         self.btn_connect.setText("Odpojit tiskárnu"); self.btn_connect.setStyleSheet("background-color: #6c757d; color: white;"); self.btn_start_print.show(); self.print_controls_widget.hide()
+        self.cmb_port.setEnabled(False); self.btn_refresh_ports.setEnabled(False)
 
     def set_ui_printing(self):
         self.btn_start_print.hide(); self.print_controls_widget.show()
