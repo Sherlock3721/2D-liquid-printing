@@ -1,12 +1,13 @@
 import sys
 import os
 import json
+import traceback as tb
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, 
-                             QHBoxLayout, QMessageBox, QFileDialog)
+                             QHBoxLayout, QMessageBox, QFileDialog, QProgressDialog)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
-APP_VERSION = "0.1.5"
+APP_VERSION = "0.1.6"
 APP_NAME = "Droplet Printing Interface (DPI)"
 APP_ID = f"cz.vut.droplet_printer.{APP_VERSION}" # Jedinečné ID aplikace pro Windows Taskbar
 
@@ -116,7 +117,6 @@ class GCodeApp(QMainWindow):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if odpoved == QMessageBox.StandardButton.Yes:
-            from PyQt6.QtWidgets import QProgressDialog
             self.progress_dialog = QProgressDialog("Stahuji aktualizaci...", "Zrušit", 0, 100, self)
             self.progress_dialog.setWindowTitle("Aktualizace")
             self.progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
@@ -137,8 +137,8 @@ class GCodeApp(QMainWindow):
         import subprocess
         try:
             if sys.platform.startswith("win"):
-                # creationflags=0x00000008 je DETACHED_PROCESS, nenechá viset konzoli
-                subprocess.Popen([script_path], creationflags=0x00000008)
+                # shell=True je nutné pro spuštění .bat souboru
+                subprocess.Popen([script_path], shell=True, creationflags=0x00000008)
             else:
                 subprocess.Popen([script_path])
         except Exception as e:
@@ -426,8 +426,45 @@ class GCodeApp(QMainWindow):
             
         except Exception as e:
             QMessageBox.critical(self, "Chyba tisku", str(e))
+
+def global_exception_hook(exctype, value, traceback):
+    """Globální zachytávání chyb pro automatické hlášení."""
+    error_msg = "".join(tb.format_exception(exctype, value, traceback))
+    print("FATAL ERROR:", error_msg)
+    
+    # Zkusíme otevřít feedback dialog, pokud existuje instance QApplication
+    app = QApplication.instance()
+    if app:
+        try:
+            # Vytvoříme zprávu pro Matrix
+            formatted_message = f"[AUTO-BUG-REPORT]\nVerze: {APP_VERSION}\nOS: {sys.platform}\n\n{error_msg}"
+            
+            msg_box = QMessageBox()
+            msg_box.setIcon(QMessageBox.Icon.Critical)
+            msg_box.setWindowTitle("Neočekávaná chyba")
+            msg_box.setText("V aplikaci došlo k neočekávané chybě.")
+            msg_box.setInformativeText("Chcete odeslat hlášení o chybě vývojářům?")
+            msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            msg_box.setDefaultButton(QMessageBox.StandardButton.Yes)
+            
+            if msg_box.exec() == QMessageBox.StandardButton.Yes:
+                from gui.feedback_dialog import MatrixSenderThread
+                # Spustíme odesílání na pozadí
+                sender = MatrixSenderThread(formatted_message)
+                # Musíme udržet referenci, aby se vlákno neukončilo předčasně
+                if not hasattr(app, '_error_senders'): app._error_senders = []
+                app._error_senders.append(sender)
+                sender.finished.connect(lambda s, m: print(f"Auto-report sent: {s}, {m}"))
+                sender.start()
+                QMessageBox.information(None, "Odesláno", "Hlášení bylo odesláno. Děkujeme.")
+        except Exception as e:
+            print("Chyba při pokusu o auto-report:", e)
+            
+    # Původní chování (vypis na stderr)
+    sys.__excepthook__(exctype, value, traceback)
             
 if __name__ == "__main__":
+    sys.excepthook = global_exception_hook
     app = QApplication(sys.argv)
     app.setStyle("Fusion") 
     
@@ -436,7 +473,7 @@ if __name__ == "__main__":
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
 
-    app.setStyleSheet("""
+    app.setStyleSheet(\"\"\"
         QWidget { background-color: #2b2b2b; color: #e0e0e0; font-family: 'FiraSans', sans-serif; font-size: 10pt; }
         QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
             background-color: #3c3c3c; border: 1px solid #555; padding: 5px; border-radius: 4px;
@@ -454,7 +491,7 @@ if __name__ == "__main__":
         QMenuBar::item:selected { background-color: #3c3c3c; border-radius: 4px; }
         QMenu { background-color: #2b2b2b; border: 1px solid #444; }
         QMenu::item:selected { background-color: #0d6efd; }
-    """)
+    \"\"\")
     window = GCodeApp()
     window.show()
     sys.exit(app.exec())

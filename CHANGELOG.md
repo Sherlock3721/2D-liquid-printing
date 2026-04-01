@@ -2,6 +2,16 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [0.1.6] - 2026-04-01
+
+### 🚀 Novinky a vylepšení
+*   **Automatické hlášení chyb:** Implementován globální systém pro zachytávání neočekávaných pádů aplikace s možností okamžitého odeslání výpisu chyby (traceback) přímo vývojářům přes Matrix (Element).
+*   **Vylepšený updater pro Windows:** Opravena kritická chyba, kdy se na Windows sice stáhla nová verze, ale nedošlo k její instalaci. Nyní updater v cyklu čeká na úplné ukončení běžící aplikace a poté bezpečně provede výměnu souboru.
+*   **Refresh vzorků:** Složka `gcodes/` byla pročištěna a nahrazena novými vzorovými soubory pro snadnější testování.
+
+### 🛠 Opravy chyb (Bug Fixes)
+*   **Oprava kódování (charmap):** Opravena chyba `'charmap' codec can't decode...` při načítání G-kódu na systémech Windows. Všechny soubory jsou nyní důsledně otevírány s kódováním UTF-8.
+
 ## [0.1.5] - 2026-04-01
 
 Tato verze přináší opravy kritických chyb při nastavování hardwaru, vylepšení vizualizace a optimalizaci tiskových tras.
