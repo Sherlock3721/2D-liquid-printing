@@ -2,6 +2,16 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [0.1.13] - 2026-04-01
+
+### 🛠 Opravy chyb
+*   **Finalizace vzorků a verze:** Zahrnutí všech zbývajících změn do buildu.
+
+## [0.1.12] - 2026-04-01
+
+### 🛠 Opravy chyb
+*   **Obnova vzorků:** Vrácení původního obsahu složky `gcodes/` podle požadavku uživatele.
+
 ## [0.1.11] - 2026-04-01
 
 ### 🛠 Opravy chyb (Hotfix)
