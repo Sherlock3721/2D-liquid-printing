@@ -2,6 +2,11 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [0.1.9] - 2026-04-01
+
+### 🛠 Opravy chyb (Hotfix)
+*   **Oprava SyntaxError:** Opravena syntaktická chyba v hlavním souboru `main.py`, která bránila úspěšnému sestavení (buildu) aplikace.
+
 ## [0.1.7] - 2026-04-01
 
 ### 🚀 Novinky a vylepšení
