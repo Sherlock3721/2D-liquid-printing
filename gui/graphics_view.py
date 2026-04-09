@@ -532,12 +532,13 @@ class InteractiveGraphicsView(QGraphicsView):
             slide.setZValue(-1)
             
             if is_prime and prime_active:
-                # Trasa odplivu: čtverec 10x10 mm uprostřed
+                # Trasa odplivu: PLNÝ čtverec 10x10 mm uprostřed
                 path_prime = QPainterPath()
                 px, py = gx + sw/2 - 5, gy + sh/2 - 5
                 path_prime.addRect(px, view_y(py, 10), 10, 10)
                 item_prime_trace = QGraphicsPathItem(path_prime)
                 item_prime_trace.setPen(pen_prime_trace)
+                item_prime_trace.setBrush(QBrush(QColor(150, 150, 150, 150)))
                 self.scene.addItem(item_prime_trace)
 
         if logic.filepath:

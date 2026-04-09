@@ -308,7 +308,7 @@ class GCodeApp(QMainWindow):
             
             try:
                 gcode_text = self.logic.generate_gcode(params)
-                with open(file_path, 'w') as f:
+                with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(header + gcode_text)
                 QMessageBox.information(self, "Uloženo", f"Soubor uložen do:\n{file_path}")
             except Exception as e:

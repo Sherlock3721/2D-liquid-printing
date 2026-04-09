@@ -109,30 +109,37 @@ class GCodeLogic:
             cur_x, cur_y = 0.0, 0.0
             current_segment_x, current_segment_y = [], []
             
-            with open(path, 'r', encoding='utf-8') as f:
-                for line in f:
-                    self.original_lines.append(line)
-                    clean_line = line.split(';')[0].upper().strip()
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            except UnicodeDecodeError:
+                # Fallback pro staré soubory na Windows
+                with open(path, 'r', encoding='cp1250') as f:
+                    lines = f.readlines()
+
+            for line in lines:
+                self.original_lines.append(line)
+                clean_line = line.split(';')[0].upper().strip()
+                
+                if 'G0' in clean_line or 'G1' in clean_line:
+                    mx = re.search(r'X([0-9\.\-]+)', clean_line)
+                    my = re.search(r'Y([0-9\.\-]+)', clean_line)
+                    new_x = float(mx.group(1)) if mx else cur_x
+                    new_y = float(my.group(1)) if my else cur_y
                     
-                    if 'G0' in clean_line or 'G1' in clean_line:
-                        mx = re.search(r'X([0-9\.\-]+)', clean_line)
-                        my = re.search(r'Y([0-9\.\-]+)', clean_line)
-                        new_x = float(mx.group(1)) if mx else cur_x
-                        new_y = float(my.group(1)) if my else cur_y
-                        
-                        if clean_line.startswith('G0'):
-                            if len(current_segment_x) > 1:
-                                self.path_x.append(current_segment_x)
-                                self.path_y.append(current_segment_y)
-                            current_segment_x = [new_x]
-                            current_segment_y = [new_y]
-                            self.travel_x.append([cur_x, new_x])
-                            self.travel_y.append([cur_y, new_y])
-                        else:
-                            current_segment_x.append(new_x)
-                            current_segment_y.append(new_y)
-                        
-                        cur_x, cur_y = new_x, new_y
+                    if clean_line.startswith('G0'):
+                        if len(current_segment_x) > 1:
+                            self.path_x.append(current_segment_x)
+                            self.path_y.append(current_segment_y)
+                        current_segment_x = [new_x]
+                        current_segment_y = [new_y]
+                        self.travel_x.append([cur_x, new_x])
+                        self.travel_y.append([cur_y, new_y])
+                    else:
+                        current_segment_x.append(new_x)
+                        current_segment_y.append(new_y)
+                    
+                    cur_x, cur_y = new_x, new_y
                         
                 if len(current_segment_x) > 1:
                     self.path_x.append(current_segment_x)

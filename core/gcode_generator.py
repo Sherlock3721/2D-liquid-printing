@@ -32,8 +32,9 @@ def generate_gcode(logic, params):
 
     area = math.pi * ((nozzle_diam / 2.0) ** 2)
     
+    correction_z = settings.get("correction_z", 0.0)
     holder_z = HOLDER_THICKNESS.get(typ_drzaku, 0.0)
-    surface_z = holder_z + slide_z
+    surface_z = holder_z + slide_z + correction_z
 
     result = []
     result.append(settings["start_gcode"])
@@ -86,7 +87,7 @@ def generate_gcode(logic, params):
             return gui_x_new, bed_y - gui_y_new
 
         if is_prime:
-            # Sekvence pro odpliv: čtverec 10x10 mm uprostřed skla
+            # Sekvence pro odpliv: PLNÝ čtverec 10x10 mm uprostřed skla
             cx, cy = posun_x + sw/2, posun_y + sh/2
             x1, x2 = cx - 5, cx + 5
             y1, y2 = cy - 5, cy + 5
@@ -96,11 +97,19 @@ def generate_gcode(logic, params):
             result.append(f"G0 Z{print_z:.3f} F1000\n")
             result.append("M83 ; Relativní extruze\n")
             
-            e_seg = 10.0 * loc_e_per_mm
-            result.append(f"G1 X{x2:.3f} Y{y1:.3f} E{e_seg:.5f} F{loc_spd}\n")
-            result.append(f"G1 X{x2:.3f} Y{y2:.3f} E{e_seg:.5f} F{loc_spd}\n")
-            result.append(f"G1 X{x1:.3f} Y{y2:.3f} E{e_seg:.5f} F{loc_spd}\n")
-            result.append(f"G1 X{x1:.3f} Y{y1:.3f} E{e_seg:.5f} F{loc_spd}\n")
+            # Cik-cak výplň čtverce 10x10
+            curr_y = y1
+            direction = 1
+            while curr_y <= y2:
+                target_x = x2 if direction > 0 else x1
+                dist = abs(target_x - (x1 if direction > 0 else x2))
+                result.append(f"G1 X{target_x:.3f} Y{curr_y:.3f} E{dist * loc_e_per_mm:.5f} F{loc_spd}\n")
+                
+                curr_y += nozzle_diam
+                if curr_y <= y2:
+                    result.append(f"G1 X{target_x:.3f} Y{curr_y:.3f} E{nozzle_diam * loc_e_per_mm:.5f} F{loc_spd}\n")
+                direction *= -1
+                
             result.append(f"G0 Z{print_z + 2.0:.3f} F1000\n")
         else:
             if logic.is_vector:
