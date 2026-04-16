@@ -68,41 +68,55 @@ class VectorSlicer:
                 raise ValueError(f"Nelze načíst DXF soubor: {e}")
                 
         # Detekce jednotek DXF
-        # 1: Inches, 4: Millimeters, 5: Centimeters, 6: Meters
         units = doc.header.get('$INSUNITS', 0)
         dxf_to_mm = 1.0
-        if units == 1: dxf_to_mm = 25.4
-        elif units == 5: dxf_to_mm = 10.0
-        elif units == 6: dxf_to_mm = 1000.0
+        if units == 1: dxf_to_mm = 25.4      # Inches
+        elif units == 5: dxf_to_mm = 10.0    # Centimeters
+        elif units == 6: dxf_to_mm = 1000.0  # Meters
         
         msp = doc.modelspace()
         self.geometries = []
         
         try:
-            # Renderování všech entit (včetně bloků INSERT) do objektů Path
+            # Získáme všechny cesty z modelspace
             all_paths = list(dxfpath.render_paths(msp))
+            if not all_paths:
+                # Pokud render_paths nic nenašlo, zkusíme aspoň základní entity ručně
+                for entity in msp:
+                    try:
+                        p = dxfpath.make_path(entity)
+                        all_paths.append(p)
+                    except: continue
             
-            # Klíčový krok: Seskupení cest podle toho, která je uvnitř které (otvory)
-            # nest_paths vrací seznam top-level cest, které mají v sobě uložené děti (otvory)
-            nested_paths = dxfpath.nest_paths(all_paths)
+            if not all_paths: return # self.geometries zůstane prázdné
             
-            def process_nested_path(p):
+            # Pokus o hnízdění cest (pro polygony s otvory)
+            try:
+                nested_paths = dxfpath.nest_paths(all_paths)
+            except:
+                # Pokud nest_paths selže, použijeme plochý seznam
+                nested_paths = all_paths
+            
+            for p in nested_paths:
+                # Zploštění cesty na body
                 coords = list(p.flattening(distance=0.1))
-                if not coords: return
+                if not coords: continue
                 
-                # Aplikace měřítka jednotek
+                # Přepočet na milimetry
                 if dxf_to_mm != 1.0:
                     coords = [(x * dxf_to_mm, y * dxf_to_mm) for x, y in coords]
                 
+                # Kontrola uzavřenosti
                 is_closed = p.is_closed
                 if not is_closed and len(coords) >= 3:
                     d = math.hypot(coords[0][0] - coords[-1][0], coords[0][1] - coords[-1][1])
-                    if d < 0.01: is_closed = True
+                    if d < 0.05: # Trochu volnější tolerance pro uzavření
+                        is_closed = True
                 
                 if is_closed and len(coords) >= 3:
                     holes = []
-                    # Zpracování otvorů (dětí této cesty)
-                    if hasattr(p, 'children'):
+                    # Pokud má cesta děti (otvory z nest_paths)
+                    if hasattr(p, 'children') and p.children:
                         for child in p.children:
                             child_coords = list(child.flattening(distance=0.1))
                             if len(child_coords) >= 3:
@@ -121,26 +135,15 @@ class VectorSlicer:
                             for g in getattr(poly, 'geoms', []):
                                 if g.geom_type == 'Polygon':
                                     self.geometries.append(g)
+                        else:
+                            self.geometries.append(LineString(coords))
                     except:
                         self.geometries.append(LineString(coords))
                 elif len(coords) >= 2:
                     self.geometries.append(LineString(coords))
-            
-            for p in nested_paths:
-                process_nested_path(p)
-                
+                    
         except Exception as e:
-            print(f"Chyba při renderování DXF: {e}")
-            # Nouzový fallback
-            for entity in msp:
-                try:
-                    p = dxfpath.make_path(entity)
-                    coords = list(p.flattening(distance=0.1))
-                    if len(coords) >= 2:
-                        if dxf_to_mm != 1.0:
-                            coords = [(x * dxf_to_mm, y * dxf_to_mm) for x, y in coords]
-                        self.geometries.append(LineString(coords))
-                except: continue
+            print(f"Kritická chyba při importu DXF: {e}")
 
     def process(self, filepath, slide_w, slide_h, margin, auto_scale=False, params=None):
         if params is None: params = {}
