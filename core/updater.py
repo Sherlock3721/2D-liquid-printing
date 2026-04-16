@@ -19,7 +19,7 @@ class AutoUpdater(QThread):
     update_ready = pyqtSignal(str)
     error = pyqtSignal(str)
 
-    def __init__(self, current_version, repo_owner="uzivatel", repo_name="gcode-editor", github_token=None):
+    def __init__(self, current_version, repo_owner="Sherlock3721", repo_name="2D-liquid-printing", github_token=None):
         super().__init__()
         self.current_version = current_version
         self.repo_owner = repo_owner

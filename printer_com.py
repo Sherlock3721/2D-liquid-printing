@@ -146,7 +146,7 @@ class SerialPrinterWorker(QThread):
             # 5. Čekání na potvrzení (Ping-Pong)
             while self.running:
                 try:
-                    response = self.serial_conn.readline().decode('utf-8').strip()
+                    response = self.serial_conn.readline().decode('utf-8', errors='ignore').strip()
                     
                     if not response:
                         continue # Pokud je tiskárna ticho (např. nahřívá se), čekáme dál

@@ -2,6 +2,14 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.0.0] - 2026-04-16 (Produkční verze)
+
+### 🚀 Novinky a vylepšení
+*   **Oficiální produkční verze:** Aplikace byla povýšena na verzi 1.0.0 a je připravena pro běžné laboratorní použití.
+*   **Vypnutí terminálu (Windows):** Při spuštění .exe souboru se již nezobrazuje černé okno terminálu pro čistší uživatelský zážitek.
+*   **Oprava dekódování komunikace:** Vyřešena chyba `utf-8 codec can't decode byte 0xc1`, která způsobovala pády při specifických odpovědích z některých tiskáren (např. s českou diakritikou nebo binárními daty).
+*   **Oprava automatických aktualizací:** Synchronizovány názvy repositářů v updateru, což zajišťuje správnou detekci a stahování nových verzí přímo z GitHubu.
+
 ## [0.1.21] - 2026-04-16
 
 ### 🚀 Novinky a vylepšení
