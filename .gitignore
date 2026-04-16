@@ -13,3 +13,4 @@ temp_print.gcode
 !gcodes/*.svg
 !gcodes/*.dxf
 /home/evolve/gcode_editor/gcodes/*.gcode
+.aider*

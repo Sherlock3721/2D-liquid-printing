@@ -2,6 +2,18 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [0.1.21] - 2026-04-16
+
+### 🚀 Novinky a vylepšení
+*   **Odhad času tisku a ujeté vzdálenosti:** Aplikace nyní v reálném čase vypočítává celkovou dráhu tiskové hlavy a odhaduje zbývající čas do konce tisku. Tyto statistiky jsou zobrazeny v levém panelu pod ukazatelem průběhu.
+*   **Vylepšené manuální ovládání:** Panel manuálního pohybu byl kompletně přepracován. Nyní umožňuje přechod na absolutní souřadnice (X, Y, Z), zobrazuje aktuální pozici trysky v reálném čase a přehledněji indikuje stav motorů.
+*   **Sledování Z-osy:** V reálném čase je nyní sledována a aktualizována také pozice osy Z, což poskytuje lepší přehled o aktuální výšce nanášení.
+*   **Optimalizace výpočtu extruze:** Zpřesněn výpočet extruze pro různé styly výplně a zaveden parametr pro plochu virtuálního filamentu pro lepší kompatibilitu s Prusa/Marlin tiskárnami.
+
+### 🛠 Opravy chyb
+*   **Stabilizace GUI:** Opraveny možné pády při aktualizaci pozice trysky a vylepšeno přepínání stavů ovládacích prvků během tisku.
+*   **Oprava pádů v updateru:** Zajištěno bezpečnější ukončení procesů před aktualizací na Windows.
+
 ## [0.1.15] - 2026-04-01
 
 ### 🚀 Novinky a vylepšení

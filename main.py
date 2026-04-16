@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget,
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
-APP_VERSION = "0.1.15"
+APP_VERSION = "0.1.21"
 APP_NAME = "Droplet Printing Interface (DPI)"
 APP_ID = f"cz.vut.droplet_printer.{APP_VERSION}" # Jedinečné ID aplikace pro Windows Taskbar
 
@@ -63,6 +63,7 @@ class GCodeApp(QMainWindow):
         self.left_panel.btn_save.clicked.connect(self.save_file)
         self.left_panel.btn_csv.clicked.connect(self.export_csv)
         self.left_panel.worker.pos_changed.connect(self.graphics_view.update_nozzle_position)
+        self.left_panel.worker.pos_changed.connect(self._update_manual_pos)
         
         # Propojení stavu tiskárny s menu
         self.left_panel.worker.status_changed.connect(self._update_menu_status)
@@ -145,6 +146,10 @@ class GCodeApp(QMainWindow):
             print("Chyba spuštění aktualizátoru:", e)
             
         QApplication.quit()
+
+    def _update_manual_pos(self, x, y, z, is_extruding):
+        if hasattr(self, 'right_panel') and hasattr(self.right_panel, 'manual_widget'):
+            self.right_panel.manual_widget.update_coords(x, y, z)
 
     def _update_menu_status(self, status):
         # Pro debugging necháváme manual control vždy povolený
@@ -307,7 +312,7 @@ class GCodeApp(QMainWindow):
             header = f"; --- EDITOR METADATA ---\n; {metadata_str}\n; --- END METADATA ---\n\n"
             
             try:
-                gcode_text = self.logic.generate_gcode(params)
+                gcode_text, _, _ = self.logic.generate_gcode(params)
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(header + gcode_text)
                 QMessageBox.information(self, "Uloženo", f"Soubor uložen do:\n{file_path}")
@@ -415,11 +420,11 @@ class GCodeApp(QMainWindow):
 
         temp_file = os.path.join(os.getcwd(), "temp_print.gcode")
         try:
-            gcode_text = self.logic.generate_gcode(params)
+            gcode_text, total_dist, total_time = self.logic.generate_gcode(params)
             with open(temp_file, 'w') as f:
                 f.write(gcode_text)
                 
-            self.left_panel.worker.print_file(temp_file)
+            self.left_panel.worker.print_file(temp_file, total_dist=total_dist, total_time=total_time)
             
             # OPRAVA: Voláme pouze naši novou metodu, která se postará o UI
             self.left_panel.set_ui_printing()

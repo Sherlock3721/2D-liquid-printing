@@ -30,11 +30,17 @@ def generate_gcode(logic, params):
     retraction = settings.get("retraction", 1.0)
     retract_speed = 3000
 
+    # VIRTUAL_FILAMENT_AREA by mělo být definováno někde globálně, pokud není, doplníme odhad
+    VIRTUAL_FILAMENT_AREA = params.get('virtual_filament_area', 2.405) # mm2 pro 1.75mm strunu
+
     area = math.pi * ((nozzle_diam / 2.0) ** 2)
     
     correction_z = settings.get("correction_z", 0.0)
     holder_z = HOLDER_THICKNESS.get(typ_drzaku, 0.0)
     surface_z = holder_z + slide_z + correction_z
+
+    total_dist = 0.0
+    total_time_sec = 0.0
 
     result = []
     result.append(settings["start_gcode"])
@@ -43,11 +49,14 @@ def generate_gcode(logic, params):
     if typ_drzaku == "Multiplex (více sklíček)" and bed_temp > 0:
         result.append(f"M140 S{bed_temp} ; Zacit nahrivat podlozku\n")
         result.append(f"M190 S{bed_temp} ; Pockat na nahrati podlozky na {bed_temp} C\n")
+        total_time_sec += 60 # Odhad 1 minuta na nahřátí
 
     positions = get_layout_positions(pocet_vzorku, slide_w, slide_h, spacing, typ_drzaku, settings["bed_max_x"], settings["bed_max_y"], prime_active=prime_active)
 
     measurement_idx = 0
     infill_style = params.get('infill_style', 'S okraji')
+
+    last_abs_x, last_abs_y = 0.0, 0.0 # Pro výpočet travelů mezi sklíčky
 
     for i, (posun_x, posun_y, sw, sh, is_prime) in enumerate(positions):
         if is_prime:
@@ -58,17 +67,15 @@ def generate_gcode(logic, params):
         result.append(settings["loop_start_gcode"])
         if not result[-1].endswith("\n"): result.append("\n")
 
-        # Overrides se vztahují pouze na reálná měření, nikoliv na odpliv
         current_overrides = slide_overrides.get(str(measurement_idx) if not is_prime else "-1", {})
         loc_z = current_overrides.get('z_offset', z_offset)
         loc_ext = current_overrides.get('extrusion_rate', extrusion_rate)
         loc_spd = current_overrides.get('print_speed', print_speed)
         loc_infill_style = current_overrides.get('infill_style', infill_style)
         
-        loc_e_per_mm = loc_ext / area
+        loc_e_per_mm = (loc_ext / 10.0) / VIRTUAL_FILAMENT_AREA
         print_z = surface_z + loc_z
 
-        # Kešování parametrů transformace
         t = transforms[measurement_idx] if transforms and not is_prime and measurement_idx < len(transforms) else None
         S = t['scale'] if t else 1.0
         gui_dx = t['gui_dx'] if t else 0.0
@@ -87,29 +94,37 @@ def generate_gcode(logic, params):
             return gui_x_new, bed_y - gui_y_new
 
         if is_prime:
-            # Sekvence pro odpliv: PLNÝ čtverec 10x10 mm uprostřed skla
             cx, cy = posun_x + sw/2, posun_y + sh/2
             x1, x2 = cx - 5, cx + 5
             y1, y2 = cy - 5, cy + 5
             
+            # Travel k začátku odplivu
+            start_abs_x, start_abs_y = x1, y1
+            travel_dist = math.hypot(start_abs_x - last_abs_x, start_abs_y - last_abs_y)
+            total_time_sec += (travel_dist / 3000) * 60
+            last_abs_x, last_abs_y = start_abs_x, start_abs_y
+
             result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop pro odpliv\n")
             result.append(f"G0 X{x1:.3f} Y{y1:.3f} F3000\n")
             result.append(f"G0 Z{print_z:.3f} F1000\n")
             result.append("M83 ; Relativní extruze\n")
             
-            # Cik-cak výplň čtverce 10x10
             curr_y = y1
             direction = 1
             while curr_y <= y2:
                 target_x = x2 if direction > 0 else x1
                 dist = abs(target_x - (x1 if direction > 0 else x2))
                 result.append(f"G1 X{target_x:.3f} Y{curr_y:.3f} E{dist * loc_e_per_mm:.5f} F{loc_spd}\n")
+                total_dist += dist
+                total_time_sec += (dist / loc_spd) * 60
                 
                 curr_y += nozzle_diam
                 if curr_y <= y2:
                     result.append(f"G1 X{target_x:.3f} Y{curr_y:.3f} E{nozzle_diam * loc_e_per_mm:.5f} F{loc_spd}\n")
+                    total_dist += nozzle_diam
+                    total_time_sec += (nozzle_diam / loc_spd) * 60
                 direction *= -1
-                
+                last_abs_x, last_abs_y = target_x, curr_y
             result.append(f"G0 Z{print_z + 2.0:.3f} F1000\n")
         else:
             if logic.is_vector:
@@ -127,16 +142,19 @@ def generate_gcode(logic, params):
                     if not px: continue
                     abs_x, abs_y = transform_pt(px[0], py[0])
                     
+                    # Travel k začátku segmentu
+                    travel_dist = math.hypot(abs_x - last_abs_x, abs_y - last_abs_y)
+                    total_time_sec += (travel_dist / 3000) * 60
+                    last_abs_x, last_abs_y = abs_x, abs_y
+
                     if loc_infill_style == "Tečky" and len(px) == 2 and px[0] == px[1]:
-                        # SPECIÁLNÍ REŽIM: Tečky (Dávkování kapek)
-                        # loc_ext v tomto případě interpretujeme jako µl na jednu kapku
                         dot_e = loc_ext / area 
-                        
                         result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop nad bod\n")
                         result.append(f"G0 X{abs_x:.3f} Y{abs_y:.3f} F3000\n")
                         result.append(f"G0 Z{print_z:.3f} F1000 ; Klesnuti k povrchu\n")
                         result.append(f"G1 E{dot_e:.5f} F300 ; Pomale davkovani kapky\n")
                         result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop po davkovani\n")
+                        total_time_sec += 2 # Odhad na jednu tečku
                         continue
 
                     result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop\n")
@@ -150,12 +168,15 @@ def generate_gcode(logic, params):
                         ax, ay = transform_pt(px[j], py[j])
                         dist = math.hypot(ax - ax_prev, ay - ay_prev)
                         result.append(f"G1 X{ax:.3f} Y{ay:.3f} E{dist * loc_e_per_mm:.5f} F{loc_spd}\n")
+                        total_dist += dist
+                        total_time_sec += (dist / loc_spd) * 60
+                        last_abs_x, last_abs_y = ax, ay
                     if retraction > 0:
                         result.append(f"G1 E{-retraction:.5f} F{retract_speed} ; Retrakce\n")
                         is_retracted = True
                 result.append(f"G0 Z{print_z + 2.0:.3f} F1000\n")
             else:
-                last_x, last_y = 0.0, 0.0
+                l_x, l_y = 0.0, 0.0
                 for line in logic.original_lines:
                     orig_l = line.split(';')[0].strip()
                     comment = " ;" + line.split(';', 1)[1].strip() if ';' in line else ""
@@ -164,18 +185,28 @@ def generate_gcode(logic, params):
                     orig_l_up = orig_l.upper(); modified_line = orig_l
                     if 'G1' in orig_l_up or 'G0' in orig_l_up:
                         mx = re.search(r'X([0-9\.\-]+)', orig_l_up); my = re.search(r'Y([0-9\.\-]+)', orig_l_up)
-                        ox = float(mx.group(1)) if mx else last_x; oy = float(my.group(1)) if my else last_y
+                        ox = float(mx.group(1)) if mx else l_x; oy = float(my.group(1)) if my else l_y
                         ax, ay = transform_pt(ox, oy)
+                        
+                        dist_head = math.hypot(ax - last_abs_x, ay - last_abs_y)
+                        
                         if 'E' in orig_l_up:
-                            lax, lay = transform_pt(last_x, last_y)
+                            lax, lay = transform_pt(l_x, l_y)
                             dist = math.hypot(ax - lax, ay - lay)
                             if dist > 0:
                                 modified_line = re.sub(r'E([0-9\.\-]+)', f"E{dist * loc_e_per_mm:.5f}", modified_line, flags=re.I)
                                 if 'F' in modified_line: modified_line = re.sub(r'F([0-9\.]+)', f"F{loc_spd}", modified_line, flags=re.I)
                                 else: modified_line += f" F{loc_spd}"
+                                total_dist += dist
+                                total_time_sec += (dist / loc_spd) * 60
+                        else:
+                            # Travel
+                            total_time_sec += (dist_head / 3000) * 60
+
                         if mx: modified_line = re.sub(r'X[0-9\.\-]+', f"X{ax:.3f}", modified_line, flags=re.I)
                         if my: modified_line = re.sub(r'Y[0-9\.\-]+', f"Y{ay:.3f}", modified_line, flags=re.I)
-                        last_x, last_y = ox, oy
+                        l_x, l_y = ox, oy
+                        last_abs_x, last_abs_y = ax, ay
                     if 'Z' in orig_l_up: modified_line = re.sub(r'Z([0-9\.\-]+)', f"Z{print_z:.3f}", modified_line, flags=re.I)
                     result.append(modified_line + comment + "\n")            
             measurement_idx += 1
@@ -184,8 +215,9 @@ def generate_gcode(logic, params):
         if not result[-1].endswith("\n"): result.append("\n")
         if typ_drzaku == "Na jeden vzorek" and not is_prime and measurement_idx < pocet_vzorku:
             result.append("; --- PAUZA PRO VÝMĚNU VZORKU ---\nG0 Z20.0 F1000\nG0 X10 Y200 F3000\nM0 Vymen vzorek\n")
+            total_time_sec += 10 # Odhad pauzy
 
     if typ_drzaku == "Multiplex (více sklíček)" and bed_temp > 0: result.append("M140 S0 ; Vypnout vyhrivani podlozky\n")
     result.append(settings["end_gcode"])
     if not result[-1].endswith("\n"): result.append("\n")
-    return "".join(result)
+    return "".join(result), total_dist, total_time_sec

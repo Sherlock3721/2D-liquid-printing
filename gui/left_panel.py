@@ -2,7 +2,7 @@ import serial.tools.list_ports
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QHBoxLayout, QComboBox, 
                              QSpinBox, QDoubleSpinBox, QLineEdit, QLabel, 
                              QPushButton, QFrame, QProgressBar)
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, Qt
 from printer_com import SerialPrinterWorker
 from gui.settings import load_settings
 from gui.feedback_dialog import FeedbackDialog
@@ -92,11 +92,11 @@ class LeftPanel(QWidget):
 
         self.inp_z_offset = QDoubleSpinBox()
         self.inp_z_offset.setRange(0.0, 5.0); self.inp_z_offset.setSingleStep(0.05); self.inp_z_offset.setValue(0.2)
-        self.form_layout.addRow("Z-offset vrstvy [mm]:", self.inp_z_offset)
+        self.form_layout.addRow("Tloušťka vrstvy [mm]:", self.inp_z_offset)
         
         self.inp_extrusion = QDoubleSpinBox()
-        self.inp_extrusion.setRange(0.001, 100.0); self.inp_extrusion.setSingleStep(0.1); self.inp_extrusion.setDecimals(3); self.inp_extrusion.setValue(1.0)
-        self.form_layout.addRow("Extruze [µl/mm]:", self.inp_extrusion)
+        self.inp_extrusion.setRange(0.001, 1000.0); self.inp_extrusion.setSingleStep(1.0); self.inp_extrusion.setDecimals(3); self.inp_extrusion.setValue(10.0)
+        self.form_layout.addRow("Extruze [µl/cm]:", self.inp_extrusion)
         
         self.cmb_nozzle = QComboBox()
         self.cmb_nozzle.addItems(list(self.nozzle_defs.keys()))
@@ -157,7 +157,14 @@ class LeftPanel(QWidget):
         self.btn_pause = QPushButton("Pozastavit"); self.btn_pause.setStyleSheet("background-color: #ffc107; color: black;")
         self.btn_stop = QPushButton("Zastavit"); self.btn_stop.setStyleSheet("background-color: #dc3545; color: white;")
         layout_print_controls.addWidget(self.btn_pause); layout_print_controls.addWidget(self.btn_stop); self.print_controls_widget.hide(); main_layout.addWidget(self.print_controls_widget)
+        
+        self.lbl_stats = QLabel("")
+        self.lbl_stats.setStyleSheet("font-size: 9pt; color: #aaa; margin-top: 5px;")
+        self.lbl_stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_stats.hide()
+        
         self.progress = QProgressBar(); self.progress.setValue(0); printer_layout.addRow(self.progress)
+        printer_layout.addRow(self.lbl_stats)
         main_layout.addLayout(printer_layout)
         self.btn_feedback = QPushButton("Nahlásit chybu / Nápad"); self.btn_feedback.setStyleSheet("background-color: #ffc107; color: black;"); self.btn_feedback.clicked.connect(self.open_feedback); main_layout.addWidget(self.btn_feedback)
 
@@ -183,8 +190,10 @@ class LeftPanel(QWidget):
         self._toggle_custom_nozzle()
 
         self.worker = SerialPrinterWorker()
-        self.worker.status_changed.connect(self.update_status); self.worker.progress_changed.connect(self.progress.setValue)
-        self.btn_connect.clicked.connect(self.toggle_connection); self.btn_stop.clicked.connect(self.stop_print); self.btn_pause.clicked.connect(self.toggle_pause)
+        self.worker.status_changed.connect(self.update_status)
+        self.worker.progress_changed.connect(self.progress.setValue)
+        self.worker.stats_changed.connect(self.update_stats)
+        self.btn_connect.clicked.connect(self.toggle_connection)
         
         self.values_changed.connect(self._aktualizovat_limit_vzorku)
         self.values_changed.connect(self._update_total_z)
@@ -244,8 +253,19 @@ class LeftPanel(QWidget):
         self.lbl_status.setText(f"Stav: {msg}")
         if msg == "Připojeno" or msg in ("Tisk dokončen", "Tisk zrušen"):
             self.lbl_status.setStyleSheet("color: #198754; font-weight: bold;"); self.set_ui_connected()
+            self.lbl_stats.hide()
         elif "Chyba" in msg or msg == "Odpojeno":
             self.lbl_status.setStyleSheet("color: #dc3545; font-weight: bold;"); self.set_ui_disconnected()
+            self.lbl_stats.hide()
+
+    def update_stats(self, total_dist, time_remaining):
+        # Převod sekund na min:sec
+        minutes = int(time_remaining // 60)
+        seconds = int(time_remaining % 60)
+        time_str = f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
+        
+        self.lbl_stats.setText(f"Dráha: {total_dist:.1f} mm | Zbývá: {time_str}")
+        self.lbl_stats.show()
             
     def toggle_connection(self):
         if self.worker.serial_conn and self.worker.serial_conn.is_open:

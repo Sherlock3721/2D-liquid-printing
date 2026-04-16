@@ -8,7 +8,8 @@ class SerialPrinterWorker(QThread):
     status_changed = pyqtSignal(str)
     temp_changed = pyqtSignal(str)
     progress_changed = pyqtSignal(int)
-    pos_changed = pyqtSignal(float, float, bool)
+    pos_changed = pyqtSignal(float, float, float, bool)
+    stats_changed = pyqtSignal(float, float) # total_dist, time_remaining
 
     def __init__(self, baudrate=115200):
         super().__init__()
@@ -19,6 +20,10 @@ class SerialPrinterWorker(QThread):
         self.is_printing = False
         self.running = False
         self.is_paused = False
+        self.cur_x, self.cur_y, self.cur_z = 0.0, 0.0, 0.0
+        self.total_dist = 0.0
+        self.total_time_est = 0.0
+        self.start_time = 0.0
 
     def connect_printer(self, manual_port=None):
         """Pokusí se připojit k tiskárně (automaticky nebo na zvolený port)."""
@@ -76,29 +81,37 @@ class SerialPrinterWorker(QThread):
         self.status_changed.emit("Chyba: Tiskárna neodpovídá")
         return False
 
-    def print_file(self, filepath):
+    def print_file(self, filepath, total_dist=0.0, total_time=0.0):
         self.gcode_lines = []
-        with open(filepath, 'r') as f:
+        with open(filepath, 'r', encoding='utf-8') as f:
             for line in f:
                 clean_line = line.split(';')[0].strip()
                 if clean_line:
                     self.gcode_lines.append(clean_line)
                     
+        self.total_dist = total_dist
+        self.total_time_est = total_time
         self.is_printing = True
         self.running = True
         self.is_paused = False
+        self.status_changed.emit("Probíhá tisk...")
+        self.start_time = time.time()
         self.start()
 
     def run(self):
         total_lines = len(self.gcode_lines)
         if total_lines == 0: return
         
-        cur_x, cur_y, last_e = 0.0, 0.0, 0.0
+        self.cur_x, self.cur_y, self.cur_z, last_e = 0.0, 0.0, 0.0, 0.0
         
         for i, line in enumerate(self.gcode_lines):
             # 1. Zvládnutí pauzy
-            while self.is_paused and self.running:
-                time.sleep(0.5) # Vlákno spí, dokud uživatel neklikne na Pokračovat
+            if self.is_paused:
+                pause_start = time.time()
+                while self.is_paused and self.running:
+                    time.sleep(0.5)
+                # Pokud jsme byli pozastaveni, přičteme čas k start_time aby se nepletl odhad
+                self.start_time += (time.time() - pause_start)
                 
             # 2. Zvládnutí Stopky
             if not self.running:
@@ -113,19 +126,22 @@ class SerialPrinterWorker(QThread):
             
             # 4. Aktualizace 3D Náhledu Trysky
             is_extruding = False
-            if line.startswith('G0') or line.startswith('G1'):
-                mx = re.search(r'X([0-9\.\-]+)', line)
-                my = re.search(r'Y([0-9\.\-]+)', line)
-                me = re.search(r'E([0-9\.\-]+)', line)
+            line_up = line.upper()
+            if line_up.startswith('G0') or line_up.startswith('G1'):
+                mx = re.search(r'X([0-9\.\-]+)', line_up)
+                my = re.search(r'Y([0-9\.\-]+)', line_up)
+                mz = re.search(r'Z([0-9\.\-]+)', line_up)
+                me = re.search(r'E([0-9\.\-]+)', line_up)
                 
-                if mx: cur_x = float(mx.group(1))
-                if my: cur_y = float(my.group(1))
+                if mx: self.cur_x = float(mx.group(1))
+                if my: self.cur_y = float(my.group(1))
+                if mz: self.cur_z = float(mz.group(1))
                 if me: 
                     current_e = float(me.group(1))
                     if current_e > last_e: is_extruding = True
                     last_e = current_e
                     
-                self.pos_changed.emit(cur_x, cur_y, is_extruding)
+                self.pos_changed.emit(self.cur_x, self.cur_y, self.cur_z, is_extruding)
 
             # 5. Čekání na potvrzení (Ping-Pong)
             while self.running:
@@ -145,9 +161,20 @@ class SerialPrinterWorker(QThread):
                     self.running = False
                     break        
                     
-            # 6. Aktualizace ukazatele průběhu
+            # 6. Aktualizace ukazatele průběhu a statistik
             if i % 5 == 0 or i == total_lines - 1:
-                self.progress_changed.emit(int((i / total_lines) * 100))
+                progress = int((i / total_lines) * 100)
+                self.progress_changed.emit(progress)
+                
+                # Odhad času do konce na základě % a uplynulého času
+                elapsed = time.time() - self.start_time
+                if progress > 0:
+                    total_est = (elapsed / progress) * 100
+                    remaining = max(0, total_est - elapsed)
+                else:
+                    remaining = self.total_time_est
+                    
+                self.stats_changed.emit(self.total_dist, remaining)
 
         self.is_printing = False
         if self.running:
@@ -170,6 +197,17 @@ class SerialPrinterWorker(QThread):
         """Odešle jeden G-kód příkaz přímo do tiskárny."""
         if self.serial_conn and self.serial_conn.is_open:
             try:
+                # Sledování pozice i pro manuální příkazy
+                line = gcode.upper().strip()
+                if line.startswith('G0') or line.startswith('G1'):
+                    mx = re.search(r'X([0-9\.\-]+)', line)
+                    my = re.search(r'Y([0-9\.\-]+)', line)
+                    mz = re.search(r'Z([0-9\.\-]+)', line)
+                    if mx: self.cur_x = float(mx.group(1))
+                    if my: self.cur_y = float(my.group(1))
+                    if mz: self.cur_z = float(mz.group(1))
+                    self.pos_changed.emit(self.cur_x, self.cur_y, self.cur_z, False)
+
                 self.serial_conn.write((gcode + '\n').encode('utf-8'))
                 return True
             except Exception as e:

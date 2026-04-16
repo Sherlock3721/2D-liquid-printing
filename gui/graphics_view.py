@@ -608,7 +608,7 @@ class InteractiveGraphicsView(QGraphicsView):
         self.fitInView(QRectF(0, 0, bed_max_x, bed_max_y), Qt.AspectRatioMode.KeepAspectRatio)
         self.centerOn(bed_max_x / 2.0, bed_max_y / 2.0)
         
-    def update_nozzle_position(self, x, y, is_extruding):
+    def update_nozzle_position(self, x, y, z, is_extruding):
         if not hasattr(self, 'bed_h'): return
         scene_x = x; scene_y = self.bed_h - y
         try:
