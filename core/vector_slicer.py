@@ -70,58 +70,53 @@ class VectorSlicer:
         msp = doc.modelspace()
         self.geometries = []
         
-        # Iterace přes všechny běžné entity v modelspace
-        for entity in msp:
-            try:
-                dxf_type = entity.dxftype()
+        # render_paths je nejmocnější nástroj v ezdxf:
+        # 1. Automaticky zpracuje LINE, CIRCLE, ARC, SPLINE, LWPOLYLINE, POLYLINE, ELLIPSE...
+        # 2. Automaticky následuje INSERT (bloky) a vykreslí jejich obsah správně umístěný
+        # 3. Převede vše na unifikované objekty Path
+        try:
+            paths = dxfpath.render_paths(msp)
+            
+            for p in paths:
+                # flattening převede křivky (Béziery, oblouky) na segmenty úseček
+                coords = list(p.flattening(distance=0.1))
+                if not coords: continue
                 
-                # Základní geometrické entity
-                if dxf_type in ('LWPOLYLINE', 'POLYLINE', 'LINE', 'CIRCLE', 'ARC', 'ELLIPSE', 'SPLINE'):
-                    # Převedeme na ezdxf.path.Path (unifikované rozhraní)
-                    p = dxfpath.make_path(entity)
-                    
-                    # Vyhlazení (zploštění) křivky na posloupnost bodů
-                    # distance=0.1 znamená max. odchylka 0.1mm od ideální křivky
-                    coords = list(p.flattening(distance=0.1))
-                    if not coords: continue
-                    
-                    # Kontrola, zda je cesta uzavřená (vlastnost DXF nebo shodné koncové body)
-                    is_closed = p.is_closed
-                    if not is_closed and len(coords) >= 3:
-                        # Pokud začátek a konec leží téměř na sobě, považujeme za uzavřené
-                        d = math.hypot(coords[0][0] - coords[-1][0], coords[0][1] - coords[-1][1])
-                        if d < 0.01:
-                            is_closed = True
-                    
-                    if is_closed and len(coords) >= 3:
+                # Kontrola uzavřenosti (přímo z objektu Path nebo kontrolou konců)
+                is_closed = p.is_closed
+                if not is_closed and len(coords) >= 3:
+                    d = math.hypot(coords[0][0] - coords[-1][0], coords[0][1] - coords[-1][1])
+                    if d < 0.01:
+                        is_closed = True
+                
+                if is_closed and len(coords) >= 3:
+                    try:
                         poly = Polygon(coords)
                         if not poly.is_valid:
                             poly = make_valid(poly)
+                        
                         if poly.geom_type == 'Polygon':
                             self.geometries.append(poly)
                         elif poly.geom_type in ['MultiPolygon', 'GeometryCollection']:
                             for g in getattr(poly, 'geoms', []):
                                 if g.geom_type == 'Polygon':
                                     self.geometries.append(g)
-                    elif len(coords) >= 2:
+                    except:
+                        # Fallback na čáru, pokud polygon selže
                         self.geometries.append(LineString(coords))
-                            
-                elif dxf_type in ('SOLID', 'TRACE'):
-                    # SOLID/TRACE jsou vyplněné trojúhelníky nebo čtyřúhelníky
-                    pts = [entity.dxf.vtx0, entity.dxf.vtx1, entity.dxf.vtx2, entity.dxf.vtx3]
-                    unique_coords = []
-                    for c in pts:
-                        pt = (c.x, c.y)
-                        if not unique_coords or pt != unique_coords[-1]:
-                            unique_coords.append(pt)
-                    if len(unique_coords) >= 3:
-                        poly = Polygon(unique_coords)
-                        if not poly.is_valid: poly = make_valid(poly)
-                        self.geometries.append(poly)
-                        
-            except Exception as e:
-                print(f"Chyba při zpracování entity {entity}: {e}")
-                continue
+                elif len(coords) >= 2:
+                    self.geometries.append(LineString(coords))
+        except Exception as e:
+            print(f"Chyba při renderování DXF cest: {e}")
+            # Nouzový fallback na základní iteraci, pokud render_paths selže (např. verze ezdxf)
+            for entity in msp:
+                try:
+                    if entity.dxftype() in ('LINE', 'LWPOLYLINE', 'POLYLINE'):
+                        p = dxfpath.make_path(entity)
+                        coords = list(p.flattening(distance=0.1))
+                        if len(coords) >= 2:
+                            self.geometries.append(LineString(coords))
+                except: continue
 
     def process(self, filepath, slide_w, slide_h, margin, auto_scale=False, params=None):
         if params is None: params = {}
