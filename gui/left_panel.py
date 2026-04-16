@@ -303,6 +303,8 @@ class LeftPanel(QWidget):
             'sample_count': self.inp_count.value(), 'z_offset': self.inp_z_offset.value(), 'extrusion_rate': self.inp_extrusion.value(),
             'nozzle_type': nozzle_type, 'nozzle_diam': nozzle_d, 'nozzle_height': nozzle_h,
             'print_speed': self.settings.get("print_speed", 1500), 'retraction': self.settings.get("retraction", 1.0),
+            'filament_diameter': self.settings.get("filament_diameter", 1.75),
+            'flow_multiplier': self.settings.get("flow_multiplier", 1.0),
             'bed_temp': self.inp_bed_temp.value(), 'infill_style': self.cmb_infill_style.currentText(),
             'infill_val': self.inp_infill_val.value(), 'infill_type': self.cmb_infill_type.currentText(),
             'infill_angle': self.inp_infill_angle.value(), 'prime_active': self.btn_prime.isChecked()

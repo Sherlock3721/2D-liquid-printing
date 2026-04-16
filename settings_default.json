@@ -26,5 +26,7 @@
     "Červená": [30.9, 0.3],
     "Modrá": [31.75, 0.41],
     "Vlastní": [0.0, 0.4]
-  }
+  },
+  "filament_diameter": 1.75,
+  "flow_multiplier": 1.0
 }

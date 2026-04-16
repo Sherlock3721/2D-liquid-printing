@@ -96,7 +96,15 @@ class SettingsDialog(QDialog):
         self.inp_speed.setValue(self.settings.get("print_speed", 1500))
         self.inp_retract = QDoubleSpinBox(); self.inp_retract.setRange(0.0, 50.0); self.inp_retract.setSingleStep(0.1); self.inp_retract.setSuffix(" mm")
         self.inp_retract.setValue(self.settings.get("retraction", 1.0))
+        
+        self.inp_filament_d = QDoubleSpinBox(); self.inp_filament_d.setRange(0.1, 10.0); self.inp_filament_d.setSingleStep(0.01); self.inp_filament_d.setSuffix(" mm")
+        self.inp_filament_d.setValue(self.settings.get("filament_diameter", 1.75))
+        
+        self.inp_flow_mult = QDoubleSpinBox(); self.inp_flow_mult.setRange(0.1, 10.0); self.inp_flow_mult.setSingleStep(0.05)
+        self.inp_flow_mult.setValue(self.settings.get("flow_multiplier", 1.0))
+
         ext_form.addRow("Rychlost tisku:", self.inp_speed); ext_form.addRow("Retrakce:", self.inp_retract)
+        ext_form.addRow("Průměr filamentu:", self.inp_filament_d); ext_form.addRow("Flow multiplikátor:", self.inp_flow_mult)
         lay_extruze.addLayout(ext_form)
         lay_extruze.addStretch()
         tabs.addTab(tab_extruze, "Extruze")
@@ -256,6 +264,8 @@ class SettingsDialog(QDialog):
             "show_slide_grid": self.chk_show_grid.isChecked(),
             "show_bed_axes": self.chk_show_axes.isChecked(),
             "print_speed": self.inp_speed.value(), "retraction": self.inp_retract.value(),
+            "filament_diameter": self.inp_filament_d.value(),
+            "flow_multiplier": self.inp_flow_mult.value(),
             "start_gcode": self.txt_start.toPlainText(), "end_gcode": self.txt_end.toPlainText(),
             "loop_start_gcode": self.txt_loop_start.toPlainText(), "loop_end_gcode": self.txt_loop_end.toPlainText(),
             "nozzle_defs": new_nozzles,

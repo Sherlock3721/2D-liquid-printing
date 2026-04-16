@@ -1,4 +1,5 @@
 import ezdxf
+import math
 from svgpathtools import svg2paths
 from shapely.geometry import Polygon, LineString, MultiLineString
 from shapely.ops import unary_union
@@ -56,24 +57,71 @@ class VectorSlicer:
                             self.geometries.append(geom)
             self.geometries.extend(sub_lines)
 
-    def load_dxf(self, path):
-        doc = ezdxf.readfile(path)
+    def load_dxf(self, path_str):
+        from ezdxf import path as dxfpath
+        try:
+            doc = ezdxf.readfile(path_str)
+        except Exception as e:
+            try:
+                doc = ezdxf.readfile(path_str, encoding='cp1250')
+            except:
+                raise ValueError(f"Nelze načíst DXF soubor: {e}")
+                
         msp = doc.modelspace()
         self.geometries = []
+        
+        # Iterace přes všechny běžné entity v modelspace
         for entity in msp:
-            if entity.dxftype() == 'LWPOLYLINE':
-                coords = [(p[0], p[1]) for p in entity.get_points(format='xy')]
-                if entity.closed and len(coords) >= 3:
-                    poly = Polygon(coords)
-                    if not poly.is_valid:
-                        poly = make_valid(poly)
-                    if poly.geom_type == 'Polygon':
+            try:
+                dxf_type = entity.dxftype()
+                
+                # Základní geometrické entity
+                if dxf_type in ('LWPOLYLINE', 'POLYLINE', 'LINE', 'CIRCLE', 'ARC', 'ELLIPSE', 'SPLINE'):
+                    # Převedeme na ezdxf.path.Path (unifikované rozhraní)
+                    p = dxfpath.make_path(entity)
+                    
+                    # Vyhlazení (zploštění) křivky na posloupnost bodů
+                    # distance=0.1 znamená max. odchylka 0.1mm od ideální křivky
+                    coords = list(p.flattening(distance=0.1))
+                    if not coords: continue
+                    
+                    # Kontrola, zda je cesta uzavřená (vlastnost DXF nebo shodné koncové body)
+                    is_closed = p.is_closed
+                    if not is_closed and len(coords) >= 3:
+                        # Pokud začátek a konec leží téměř na sobě, považujeme za uzavřené
+                        d = math.hypot(coords[0][0] - coords[-1][0], coords[0][1] - coords[-1][1])
+                        if d < 0.01:
+                            is_closed = True
+                    
+                    if is_closed and len(coords) >= 3:
+                        poly = Polygon(coords)
+                        if not poly.is_valid:
+                            poly = make_valid(poly)
+                        if poly.geom_type == 'Polygon':
+                            self.geometries.append(poly)
+                        elif poly.geom_type in ['MultiPolygon', 'GeometryCollection']:
+                            for g in getattr(poly, 'geoms', []):
+                                if g.geom_type == 'Polygon':
+                                    self.geometries.append(g)
+                    elif len(coords) >= 2:
+                        self.geometries.append(LineString(coords))
+                            
+                elif dxf_type in ('SOLID', 'TRACE'):
+                    # SOLID/TRACE jsou vyplněné trojúhelníky nebo čtyřúhelníky
+                    pts = [entity.dxf.vtx0, entity.dxf.vtx1, entity.dxf.vtx2, entity.dxf.vtx3]
+                    unique_coords = []
+                    for c in pts:
+                        pt = (c.x, c.y)
+                        if not unique_coords or pt != unique_coords[-1]:
+                            unique_coords.append(pt)
+                    if len(unique_coords) >= 3:
+                        poly = Polygon(unique_coords)
+                        if not poly.is_valid: poly = make_valid(poly)
                         self.geometries.append(poly)
-                else:
-                    self.geometries.append(LineString(coords))
-            elif entity.dxftype() == 'LINE':
-                self.geometries.append(LineString([(entity.dxf.start.x, entity.dxf.start.y), 
-                                                   (entity.dxf.end.x, entity.dxf.end.y)]))
+                        
+            except Exception as e:
+                print(f"Chyba při zpracování entity {entity}: {e}")
+                continue
 
     def process(self, filepath, slide_w, slide_h, margin, auto_scale=False, params=None):
         if params is None: params = {}

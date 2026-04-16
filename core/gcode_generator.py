@@ -2,6 +2,7 @@ import os
 import re
 import math
 from gui.settings import load_settings
+from core.extrusion_logic import ExtrusionCalculator
 
 def generate_gcode(logic, params):
     from core.logic import get_layout_positions, HOLDER_THICKNESS
@@ -9,6 +10,11 @@ def generate_gcode(logic, params):
     if not logic.filepath: raise ValueError("Není načten žádný vstupní vzorek.")
 
     settings = load_settings()
+    
+    # Inicializace logiky pro extruzi
+    filament_diam = params.get('filament_diameter', 1.75)
+    flow_mult = params.get('flow_multiplier', 1.0)
+    ext_calc = ExtrusionCalculator(filament_diameter=filament_diam, flow_multiplier=flow_mult)
 
     typ_drzaku = params.get('holder_type', 'Na jeden vzorek')
     z_offset = params.get('z_offset', 0.2)
@@ -30,11 +36,6 @@ def generate_gcode(logic, params):
     retraction = settings.get("retraction", 1.0)
     retract_speed = 3000
 
-    # VIRTUAL_FILAMENT_AREA by mělo být definováno někde globálně, pokud není, doplníme odhad
-    VIRTUAL_FILAMENT_AREA = params.get('virtual_filament_area', 2.405) # mm2 pro 1.75mm strunu
-
-    area = math.pi * ((nozzle_diam / 2.0) ** 2)
-    
     correction_z = settings.get("correction_z", 0.0)
     holder_z = HOLDER_THICKNESS.get(typ_drzaku, 0.0)
     surface_z = holder_z + slide_z + correction_z
@@ -73,7 +74,8 @@ def generate_gcode(logic, params):
         loc_spd = current_overrides.get('print_speed', print_speed)
         loc_infill_style = current_overrides.get('infill_style', infill_style)
         
-        loc_e_per_mm = (loc_ext / 10.0) / VIRTUAL_FILAMENT_AREA
+        # Výpočet extruze pomocí nové logiky
+        loc_e_per_mm = ext_calc.calculate_e_per_mm(loc_ext, nozzle_diam, loc_spd)
         print_z = surface_z + loc_z
 
         t = transforms[measurement_idx] if transforms and not is_prime and measurement_idx < len(transforms) else None
@@ -148,7 +150,8 @@ def generate_gcode(logic, params):
                     last_abs_x, last_abs_y = abs_x, abs_y
 
                     if loc_infill_style == "Tečky" and len(px) == 2 and px[0] == px[1]:
-                        dot_e = loc_ext / area 
+                        # loc_ext v tomto případě interpretujeme jako µl na jednu kapku
+                        dot_e = ext_calc.calculate_dot_extrusion(loc_ext)
                         result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop nad bod\n")
                         result.append(f"G0 X{abs_x:.3f} Y{abs_y:.3f} F3000\n")
                         result.append(f"G0 Z{print_z:.3f} F1000 ; Klesnuti k povrchu\n")
