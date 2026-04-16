@@ -67,31 +67,51 @@ class VectorSlicer:
             except:
                 raise ValueError(f"Nelze načíst DXF soubor: {e}")
                 
+        # Detekce jednotek DXF
+        # 1: Inches, 4: Millimeters, 5: Centimeters, 6: Meters
+        units = doc.header.get('$INSUNITS', 0)
+        dxf_to_mm = 1.0
+        if units == 1: dxf_to_mm = 25.4
+        elif units == 5: dxf_to_mm = 10.0
+        elif units == 6: dxf_to_mm = 1000.0
+        
         msp = doc.modelspace()
         self.geometries = []
         
-        # render_paths je nejmocnější nástroj v ezdxf:
-        # 1. Automaticky zpracuje LINE, CIRCLE, ARC, SPLINE, LWPOLYLINE, POLYLINE, ELLIPSE...
-        # 2. Automaticky následuje INSERT (bloky) a vykreslí jejich obsah správně umístěný
-        # 3. Převede vše na unifikované objekty Path
         try:
-            paths = dxfpath.render_paths(msp)
+            # Renderování všech entit (včetně bloků INSERT) do objektů Path
+            all_paths = list(dxfpath.render_paths(msp))
             
-            for p in paths:
-                # flattening převede křivky (Béziery, oblouky) na segmenty úseček
+            # Klíčový krok: Seskupení cest podle toho, která je uvnitř které (otvory)
+            # nest_paths vrací seznam top-level cest, které mají v sobě uložené děti (otvory)
+            nested_paths = dxfpath.nest_paths(all_paths)
+            
+            def process_nested_path(p):
                 coords = list(p.flattening(distance=0.1))
-                if not coords: continue
+                if not coords: return
                 
-                # Kontrola uzavřenosti (přímo z objektu Path nebo kontrolou konců)
+                # Aplikace měřítka jednotek
+                if dxf_to_mm != 1.0:
+                    coords = [(x * dxf_to_mm, y * dxf_to_mm) for x, y in coords]
+                
                 is_closed = p.is_closed
                 if not is_closed and len(coords) >= 3:
                     d = math.hypot(coords[0][0] - coords[-1][0], coords[0][1] - coords[-1][1])
-                    if d < 0.01:
-                        is_closed = True
+                    if d < 0.01: is_closed = True
                 
                 if is_closed and len(coords) >= 3:
+                    holes = []
+                    # Zpracování otvorů (dětí této cesty)
+                    if hasattr(p, 'children'):
+                        for child in p.children:
+                            child_coords = list(child.flattening(distance=0.1))
+                            if len(child_coords) >= 3:
+                                if dxf_to_mm != 1.0:
+                                    child_coords = [(x * dxf_to_mm, y * dxf_to_mm) for x, y in child_coords]
+                                holes.append(child_coords)
+                    
                     try:
-                        poly = Polygon(coords)
+                        poly = Polygon(coords, holes)
                         if not poly.is_valid:
                             poly = make_valid(poly)
                         
@@ -102,20 +122,24 @@ class VectorSlicer:
                                 if g.geom_type == 'Polygon':
                                     self.geometries.append(g)
                     except:
-                        # Fallback na čáru, pokud polygon selže
                         self.geometries.append(LineString(coords))
                 elif len(coords) >= 2:
                     self.geometries.append(LineString(coords))
+            
+            for p in nested_paths:
+                process_nested_path(p)
+                
         except Exception as e:
-            print(f"Chyba při renderování DXF cest: {e}")
-            # Nouzový fallback na základní iteraci, pokud render_paths selže (např. verze ezdxf)
+            print(f"Chyba při renderování DXF: {e}")
+            # Nouzový fallback
             for entity in msp:
                 try:
-                    if entity.dxftype() in ('LINE', 'LWPOLYLINE', 'POLYLINE'):
-                        p = dxfpath.make_path(entity)
-                        coords = list(p.flattening(distance=0.1))
-                        if len(coords) >= 2:
-                            self.geometries.append(LineString(coords))
+                    p = dxfpath.make_path(entity)
+                    coords = list(p.flattening(distance=0.1))
+                    if len(coords) >= 2:
+                        if dxf_to_mm != 1.0:
+                            coords = [(x * dxf_to_mm, y * dxf_to_mm) for x, y in coords]
+                        self.geometries.append(LineString(coords))
                 except: continue
 
     def process(self, filepath, slide_w, slide_h, margin, auto_scale=False, params=None):
