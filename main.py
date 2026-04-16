@@ -421,7 +421,7 @@ class GCodeApp(QMainWindow):
         temp_file = os.path.join(os.getcwd(), "temp_print.gcode")
         try:
             gcode_text, total_dist, total_time = self.logic.generate_gcode(params)
-            with open(temp_file, 'w') as f:
+            with open(temp_file, 'w', encoding='utf-8') as f:
                 f.write(gcode_text)
                 
             self.left_panel.worker.print_file(temp_file, total_dist=total_dist, total_time=total_time)

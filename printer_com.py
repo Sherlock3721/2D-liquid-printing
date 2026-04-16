@@ -83,7 +83,7 @@ class SerialPrinterWorker(QThread):
 
     def print_file(self, filepath, total_dist=0.0, total_time=0.0):
         self.gcode_lines = []
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 clean_line = line.split(';')[0].strip()
                 if clean_line:
