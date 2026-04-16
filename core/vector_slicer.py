@@ -61,11 +61,11 @@ class VectorSlicer:
         from ezdxf import path as dxfpath
         try:
             doc = ezdxf.readfile(path_str)
-        except Exception as e:
+        except Exception:
             try:
                 doc = ezdxf.readfile(path_str, encoding='cp1250')
-            except:
-                raise ValueError(f"Nelze načíst DXF soubor: {e}")
+            except Exception as e:
+                raise ValueError(f"DXF soubor nelze načíst: {e}")
                 
         # Detekce jednotek DXF
         units = doc.header.get('$INSUNITS', 0)
@@ -74,76 +74,99 @@ class VectorSlicer:
         elif units == 5: dxf_to_mm = 10.0    # Centimeters
         elif units == 6: dxf_to_mm = 1000.0  # Meters
         
-        msp = doc.modelspace()
         self.geometries = []
         
+        # Posbíráme všechny cesty ze všech možných zdrojů v DXF
+        all_paths = []
+        
+        # 1. Zkusíme ModelSpace
+        msp = doc.modelspace()
         try:
-            # Získáme všechny cesty z modelspace
-            all_paths = list(dxfpath.render_paths(msp))
-            if not all_paths:
-                # Pokud render_paths nic nenašlo, zkusíme aspoň základní entity ručně
-                for entity in msp:
-                    try:
-                        p = dxfpath.make_path(entity)
-                        all_paths.append(p)
-                    except: continue
+            all_paths.extend(list(dxfpath.render_paths(msp)))
+        except: pass
+        
+        # 2. Pokud je all_paths prázdné, zkusíme projít ModelSpace entitu po entitě (robustnější)
+        if not all_paths:
+            for entity in msp:
+                try:
+                    # Pro bloky/vložení použijeme render_paths, pro ostatní make_path
+                    if entity.dxftype() == 'INSERT':
+                        all_paths.extend(list(dxfpath.render_paths([entity])))
+                    else:
+                        all_paths.append(dxfpath.make_path(entity))
+                except: continue
+
+        # 3. Pokud je stále prázdné, prozkoumáme i ostatní layouty (Paper Space)
+        if not all_paths:
+            for layout in doc.layouts:
+                if layout.name == msp.name: continue
+                try:
+                    all_paths.extend(list(dxfpath.render_paths(layout)))
+                except: pass
+
+        if not all_paths:
+            # Poslední záchrana: Ruční zpracování základních entit bez knihovny ezdxf.path
+            for entity in msp:
+                try:
+                    if entity.dxftype() == 'LINE':
+                        self.geometries.append(LineString([
+                            (entity.dxf.start.x * dxf_to_mm, entity.dxf.start.y * dxf_to_mm),
+                            (entity.dxf.end.x * dxf_to_mm, entity.dxf.end.y * dxf_to_mm)
+                        ]))
+                    elif entity.dxftype() == 'LWPOLYLINE':
+                        pts = [(p[0]*dxf_to_mm, p[1]*dxf_to_mm) for p in entity.get_points(format='xy')]
+                        if len(pts) >= 2:
+                            self.geometries.append(LineString(pts))
+                except: continue
+            if self.geometries: return # Podařilo se aspoň něco ručně
+            return # Opravdu nic nenalezeno
+
+        # Pokus o hnízdění cest (pro polygony s otvory)
+        try:
+            nested_paths = dxfpath.nest_paths(all_paths)
+        except:
+            nested_paths = all_paths
             
-            if not all_paths: return # self.geometries zůstane prázdné
+        for p in nested_paths:
+            # Zploštění cesty na body
+            coords = list(p.flattening(distance=0.1))
+            if not coords: continue
             
-            # Pokus o hnízdění cest (pro polygony s otvory)
-            try:
-                nested_paths = dxfpath.nest_paths(all_paths)
-            except:
-                # Pokud nest_paths selže, použijeme plochý seznam
-                nested_paths = all_paths
+            # Přepočet na milimetry
+            if dxf_to_mm != 1.0:
+                coords = [(x * dxf_to_mm, y * dxf_to_mm) for x, y in coords]
             
-            for p in nested_paths:
-                # Zploštění cesty na body
-                coords = list(p.flattening(distance=0.1))
-                if not coords: continue
+            # Kontrola uzavřenosti
+            is_closed = p.is_closed
+            if not is_closed and len(coords) >= 3:
+                d = math.hypot(coords[0][0] - coords[-1][0], coords[0][1] - coords[-1][1])
+                if d < 0.1: # Ještě volnější tolerance pro uzavření
+                    is_closed = True
+            
+            if is_closed and len(coords) >= 3:
+                holes = []
+                if hasattr(p, 'children') and p.children:
+                    for child in p.children:
+                        child_coords = list(child.flattening(distance=0.1))
+                        if len(child_coords) >= 3:
+                            if dxf_to_mm != 1.0:
+                                child_coords = [(x * dxf_to_mm, y * dxf_to_mm) for x, y in child_coords]
+                            holes.append(child_coords)
                 
-                # Přepočet na milimetry
-                if dxf_to_mm != 1.0:
-                    coords = [(x * dxf_to_mm, y * dxf_to_mm) for x, y in coords]
-                
-                # Kontrola uzavřenosti
-                is_closed = p.is_closed
-                if not is_closed and len(coords) >= 3:
-                    d = math.hypot(coords[0][0] - coords[-1][0], coords[0][1] - coords[-1][1])
-                    if d < 0.05: # Trochu volnější tolerance pro uzavření
-                        is_closed = True
-                
-                if is_closed and len(coords) >= 3:
-                    holes = []
-                    # Pokud má cesta děti (otvory z nest_paths)
-                    if hasattr(p, 'children') and p.children:
-                        for child in p.children:
-                            child_coords = list(child.flattening(distance=0.1))
-                            if len(child_coords) >= 3:
-                                if dxf_to_mm != 1.0:
-                                    child_coords = [(x * dxf_to_mm, y * dxf_to_mm) for x, y in child_coords]
-                                holes.append(child_coords)
-                    
-                    try:
-                        poly = Polygon(coords, holes)
-                        if not poly.is_valid:
-                            poly = make_valid(poly)
-                        
-                        if poly.geom_type == 'Polygon':
-                            self.geometries.append(poly)
-                        elif poly.geom_type in ['MultiPolygon', 'GeometryCollection']:
-                            for g in getattr(poly, 'geoms', []):
-                                if g.geom_type == 'Polygon':
-                                    self.geometries.append(g)
-                        else:
-                            self.geometries.append(LineString(coords))
-                    except:
+                try:
+                    poly = Polygon(coords, holes)
+                    if not poly.is_valid: poly = make_valid(poly)
+                    if poly.geom_type == 'Polygon':
+                        self.geometries.append(poly)
+                    elif poly.geom_type in ['MultiPolygon', 'GeometryCollection']:
+                        for g in getattr(poly, 'geoms', []):
+                            if g.geom_type == 'Polygon': self.geometries.append(g)
+                    else:
                         self.geometries.append(LineString(coords))
-                elif len(coords) >= 2:
+                except:
                     self.geometries.append(LineString(coords))
-                    
-        except Exception as e:
-            print(f"Kritická chyba při importu DXF: {e}")
+            elif len(coords) >= 2:
+                self.geometries.append(LineString(coords))
 
     def process(self, filepath, slide_w, slide_h, margin, auto_scale=False, params=None):
         if params is None: params = {}
