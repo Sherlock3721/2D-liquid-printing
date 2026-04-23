@@ -5,7 +5,7 @@ from gui.settings import load_settings
 from core.extrusion_logic import ExtrusionCalculator
 
 def generate_gcode(logic, params):
-    from core.logic import get_layout_positions, HOLDER_THICKNESS
+    from core.logic import get_layout_positions
     
     if not logic.filepath: raise ValueError("Není načten žádný vstupní vzorek.")
 
@@ -33,7 +33,6 @@ def generate_gcode(logic, params):
     
     slide_w = params.get('slide_w', 25.0)
     slide_h = params.get('slide_h', 75.0)
-    slide_z = params.get('slide_z', 1.0)
     
     spacing = settings["multi_spacing"] 
     transforms = params.get('transforms', [])
@@ -45,9 +44,8 @@ def generate_gcode(logic, params):
     retraction = settings.get("retraction", 1.0)
     retract_speed = 3000
 
-    correction_z = settings.get("correction_z", 0.0)
-    holder_z = 0.0
-    surface_z = holder_z + slide_z + correction_z
+    block_h = settings.get("block_height", 34.0)
+    hidden_h = settings.get("hidden_nozzle_part", 4.0)
 
     total_dist = 0.0
     total_time_sec = 0.0
@@ -82,11 +80,14 @@ def generate_gcode(logic, params):
         loc_ext = current_overrides.get('extrusion_rate', extrusion_rate)
         loc_spd = current_overrides.get('print_speed', print_speed)
         loc_infill_style = current_overrides.get('infill_style', infill_style)
+        loc_nozzle_h = current_overrides.get('nozzle_height', params.get('nozzle_height', 30.0))
         
         # Výpočet extruze pomocí nové logiky
         loc_unit = current_overrides.get('extrusion_unit', params.get('extrusion_unit', 'µl/mm'))
         loc_e_per_mm = ext_calc.calculate_e_per_mm(loc_ext, loc_unit, nozzle_diam, loc_spd)
-        print_z = surface_z + loc_z
+        
+        # Nový výpočet absolutního Z: Výška bloku + Výška trysky - Schovaná část + lokální offset
+        print_z = block_h + loc_nozzle_h - hidden_h + loc_z
 
         t = transforms[measurement_idx] if transforms and not is_prime and measurement_idx < len(transforms) else None
         S = t['scale'] if t else 1.0
@@ -191,6 +192,9 @@ def generate_gcode(logic, params):
                 result.append(f"G0 Z{print_z + 2.0:.3f} F1000\n")
             else:
                 l_x, l_y = 0.0, 0.0
+                off_x = getattr(logic, 'gcode_offset_x', 0.0)
+                off_y = getattr(logic, 'gcode_offset_y', 0.0)
+                
                 for line in logic.original_lines:
                     orig_l = line.split(';')[0].strip()
                     comment = " ;" + line.split(';', 1)[1].strip() if ';' in line else ""
@@ -200,12 +204,15 @@ def generate_gcode(logic, params):
                     if 'G1' in orig_l_up or 'G0' in orig_l_up:
                         mx = re.search(r'X([0-9\.\-]+)', orig_l_up); my = re.search(r'Y([0-9\.\-]+)', orig_l_up)
                         ox = float(mx.group(1)) if mx else l_x; oy = float(my.group(1)) if my else l_y
-                        ax, ay = transform_pt(ox, oy)
+                        
+                        # Aplikujeme normalizační posuv (vycentrování na sklíčku)
+                        # a pak transformaci na pozici sklíčka na podložce
+                        ax, ay = transform_pt(ox + off_x, oy + off_y)
                         
                         dist_head = math.hypot(ax - last_abs_x, ay - last_abs_y)
                         
                         if 'E' in orig_l_up:
-                            lax, lay = transform_pt(l_x, l_y)
+                            lax, lay = transform_pt(l_x + off_x, l_y + off_y)
                             dist = math.hypot(ax - lax, ay - lay)
                             if dist > 0:
                                 modified_line = re.sub(r'E([0-9\.\-]+)', f"E{dist * loc_e_per_mm:.5f}", modified_line, flags=re.I)

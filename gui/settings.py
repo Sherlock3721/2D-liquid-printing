@@ -103,8 +103,16 @@ class SettingsDialog(QDialog):
         self.inp_flow_mult = QDoubleSpinBox(); self.inp_flow_mult.setRange(0.1, 10.0); self.inp_flow_mult.setSingleStep(0.05)
         self.inp_flow_mult.setValue(self.settings.get("flow_multiplier", 1.0))
 
+        self.inp_block_height = QDoubleSpinBox(); self.inp_block_height.setRange(0.0, 500.0); self.inp_block_height.setSingleStep(0.1); self.inp_block_height.setDecimals(2); self.inp_block_height.setSuffix(" mm")
+        self.inp_block_height.setValue(self.settings.get("block_height", 34.0))
+        
+        self.inp_hidden_nozzle = QDoubleSpinBox(); self.inp_hidden_nozzle.setRange(0.0, 100.0); self.inp_hidden_nozzle.setSingleStep(0.1); self.inp_hidden_nozzle.setDecimals(2); self.inp_hidden_nozzle.setSuffix(" mm")
+        self.inp_hidden_nozzle.setValue(self.settings.get("hidden_nozzle_part", 4.0))
+
         ext_form.addRow("Rychlost tisku:", self.inp_speed); ext_form.addRow("Retrakce:", self.inp_retract)
         ext_form.addRow("Vnitřní průměr stříkačky:", self.inp_filament_d); ext_form.addRow("Flow multiplikátor:", self.inp_flow_mult)
+        ext_form.addRow("Výška bloku od podložky:", self.inp_block_height)
+        ext_form.addRow("Schovaná část trysky:", self.inp_hidden_nozzle)
         lay_extruze.addLayout(ext_form)
         lay_extruze.addStretch()
         tabs.addTab(tab_extruze, "Extruze")
@@ -143,8 +151,6 @@ class SettingsDialog(QDialog):
         self.inp_start_x = QDoubleSpinBox(); self.inp_start_x.setRange(0, 100); self.inp_start_x.setValue(self.settings.get("start_offset_x", 10.0))
         self.inp_start_y = QDoubleSpinBox(); self.inp_start_y.setRange(0, 100); self.inp_start_y.setValue(self.settings.get("start_offset_y", 10.0))
         self.inp_spacing = QDoubleSpinBox(); self.inp_spacing.setRange(0, 50); self.inp_spacing.setValue(self.settings.get("multi_spacing", 5.0))
-        self.inp_correction_z = QDoubleSpinBox(); self.inp_correction_z.setRange(-10.0, 10.0); self.inp_correction_z.setSingleStep(0.01); self.inp_correction_z.setDecimals(3); self.inp_correction_z.setSuffix(" mm")
-        self.inp_correction_z.setValue(self.settings.get("correction_z", 0.0))
         
         self.chk_show_grid = QCheckBox("Zobrazit mřížku u sklíček v náhledu")
         self.chk_show_grid.setChecked(self.settings.get("show_slide_grid", True))
@@ -154,7 +160,7 @@ class SettingsDialog(QDialog):
         
         hw_form.addRow("Max šířka (X) [mm]:", self.inp_bed_x); hw_form.addRow("Max hloubka (Y) [mm]:", self.inp_bed_y)
         hw_form.addRow("Odsazení (X okraj) [mm]:", self.inp_start_x); hw_form.addRow("Odsazení (Y okraj) [mm]:", self.inp_start_y)
-        hw_form.addRow("Mezera mezi sklíčky [mm]:", self.inp_spacing); hw_form.addRow("<b>Korekce Z [mm]:</b>", self.inp_correction_z)
+        hw_form.addRow("Mezera mezi sklíčky [mm]:", self.inp_spacing)
         hw_form.addRow(self.chk_show_grid)
         hw_form.addRow(self.chk_show_axes)
         
@@ -294,12 +300,14 @@ class SettingsDialog(QDialog):
         self.settings.update({
             "bed_max_x": self.inp_bed_x.value(), "bed_max_y": self.inp_bed_y.value(),
             "start_offset_x": self.inp_start_x.value(), "start_offset_y": self.inp_start_y.value(),
-            "multi_spacing": self.inp_spacing.value(), "correction_z": self.inp_correction_z.value(),
+            "multi_spacing": self.inp_spacing.value(),
             "show_slide_grid": self.chk_show_grid.isChecked(),
             "show_bed_axes": self.chk_show_axes.isChecked(),
             "print_speed": self.inp_speed.value(), "retraction": self.inp_retract.value(),
             "filament_diameter": self.inp_filament_d.value(),
             "flow_multiplier": self.inp_flow_mult.value(),
+            "block_height": self.inp_block_height.value(),
+            "hidden_nozzle_part": self.inp_hidden_nozzle.value(),
             "calibration_factor": self.inp_cal_factor.value(),
             "start_gcode": self.txt_start.toPlainText(), "end_gcode": self.txt_end.toPlainText(),
             "loop_start_gcode": self.txt_loop_start.toPlainText(), "loop_end_gcode": self.txt_loop_end.toPlainText(),

@@ -4,11 +4,6 @@ import math
 from core.vector_slicer import VectorSlicer
 from gui.settings import load_settings
 
-# Skutečná fyzická tloušťka podkladu pod sklíčkem
-HOLDER_THICKNESS = {
-    "Multiplex (více sklíček)": 0.0 
-}
-
 def get_layout_positions(count, slide_w, slide_h, spacing, holder_type, bed_max_x, bed_max_y, prime_active=False):
     from gui.settings import load_settings
     settings = load_settings()
@@ -71,6 +66,8 @@ class GCodeLogic:
         self.travel_x, self.travel_y = [], []
         self.paths_by_index = {} 
         self.is_vector = path.lower().endswith(('.svg', '.dxf'))
+        self.gcode_offset_x = 0.0
+        self.gcode_offset_y = 0.0
 
         if self.is_vector:
             if not vector_params: return
@@ -119,13 +116,14 @@ class GCodeLogic:
                 self.travel_y.append([self.path_y[i][-1], self.path_y[i+1][0]])
         else:
             cur_x, cur_y = 0.0, 0.0
+            all_pts_x, all_pts_y = [], []
+            temp_segments = []
             current_segment_x, current_segment_y = [], []
             
             try:
                 with open(path, 'r', encoding='utf-8') as f:
                     lines = f.readlines()
             except UnicodeDecodeError:
-                # Fallback pro staré soubory na Windows
                 with open(path, 'r', encoding='cp1250') as f:
                     lines = f.readlines()
 
@@ -141,21 +139,40 @@ class GCodeLogic:
                     
                     if clean_line.startswith('G0'):
                         if len(current_segment_x) > 1:
-                            self.path_x.append(current_segment_x)
-                            self.path_y.append(current_segment_y)
+                            temp_segments.append((current_segment_x, current_segment_y))
                         current_segment_x = [new_x]
                         current_segment_y = [new_y]
-                        self.travel_x.append([cur_x, new_x])
-                        self.travel_y.append([cur_y, new_y])
                     else:
                         current_segment_x.append(new_x)
                         current_segment_y.append(new_y)
                     
+                    all_pts_x.append(new_x); all_pts_y.append(new_y)
                     cur_x, cur_y = new_x, new_y
-                        
-                if len(current_segment_x) > 1:
-                    self.path_x.append(current_segment_x)
-                    self.path_y.append(current_segment_y)
+            
+            if len(current_segment_x) > 1:
+                temp_segments.append((current_segment_x, current_segment_y))
+
+            # --- NORMALIZACE G-KÓDU ---
+            if all_pts_x and all_pts_y:
+                min_x, max_x = min(all_pts_x), max(all_pts_x)
+                min_y, max_y = min(all_pts_y), max(all_pts_y)
+                w, h = max_x - min_x, max_y - min_y
+                
+                # Vycentrování na sklíčku (stejně jako u vektorů)
+                # slide_w/h bereme z globálních parametrů nebo default
+                sw = vector_params.get('slide_w', 25.0) if vector_params else 25.0
+                sh = vector_params.get('slide_h', 75.0) if vector_params else 75.0
+                self.gcode_offset_x = (sw - w) / 2.0 - min_x
+                self.gcode_offset_y = (sh - h) / 2.0 - min_y
+
+                for sx, sy in temp_segments:
+                    self.path_x.append([x + self.gcode_offset_x for x in sx])
+                    self.path_y.append([y + self.gcode_offset_y for y in sy])
+            
+            # Travely pro náhled
+            for i in range(len(self.path_x) - 1):
+                self.travel_x.append([self.path_x[i][-1], self.path_x[i+1][0]])
+                self.travel_y.append([self.path_y[i][-1], self.path_y[i+1][0]])
 
     def generate_gcode(self, params):
         from core.gcode_generator import generate_gcode

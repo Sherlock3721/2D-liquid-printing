@@ -1,0 +1,10 @@
+{
+  "userIgnoreFilters": [
+    "__pycache__/",
+    "build/",
+    "dist/",
+    "gcodes/",
+    "venv/",
+    "/\\.pyc$/"
+  ]
+}

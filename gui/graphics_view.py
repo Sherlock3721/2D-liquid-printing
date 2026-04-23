@@ -625,6 +625,11 @@ class InteractiveGraphicsView(QGraphicsView):
                 if i in saved_transforms:
                     movable_group.setScale(saved_transforms[i]['scale'])
                     movable_group.setPos(saved_transforms[i]['pos'])
+                elif loaded_transforms and i < len(loaded_transforms):
+                    # Pro načtená metadata přičteme posuv k základní pozici
+                    lt = loaded_transforms[i]
+                    movable_group.setScale(lt.get('scale', 1.0))
+                    movable_group.setPos(gx + lt.get('gui_dx', 0), sy + lt.get('gui_dy', 0))
                 else:
                     movable_group.setPos(gx, sy)
                 

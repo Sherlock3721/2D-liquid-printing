@@ -396,11 +396,16 @@ class LeftPanel(QWidget):
         else: self.btn_pause.setText("Pozastavit"); self.btn_pause.setStyleSheet("background-color: #ffc107; color: black;")
 
     def _update_total_z(self):
-        self.settings = load_settings(); correction_z = self.settings.get("correction_z", 0.0)
+        self.settings = load_settings()
         params = self.get_all_params()
-        holder_z = 0.0
-        slide_z = params.get('slide_z', 1.0); layer_z = params.get('z_offset', 0.2)
-        total_z = holder_z + slide_z + layer_z + correction_z
+        
+        block_h = self.settings.get("block_height", 34.0)
+        hidden_h = self.settings.get("hidden_nozzle_part", 4.0)
+        nozzle_h = params.get('nozzle_height', 30.0)
+        layer_z = params.get('z_offset', 0.2)
+        
+        # Nový výpočet dle požadavku: Výška bloku + výška trysky - schovaná část + tloušťka vrstvy
+        total_z = block_h + nozzle_h - hidden_h + layer_z
         self.lbl_total_z.setText(f"{total_z:.2f} mm")
 
     def refresh_settings(self):
