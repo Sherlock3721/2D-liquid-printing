@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget,
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 APP_NAME = "Droplet Printing Interface (DPI)"
 APP_ID = f"cz.vut.droplet_printer.{APP_VERSION}" # Jedinečné ID aplikace pro Windows Taskbar
 
@@ -96,6 +96,8 @@ class GCodeApp(QMainWindow):
         
         if getattr(sys, 'frozen', False):
             self.updater.check_for_updates()
+            
+        self.showMaximized()
 
     def check_updates_manually(self):
         # Pro debugging povolíme kontrolu i mimo frozen, ale s varováním
@@ -196,20 +198,30 @@ class GCodeApp(QMainWindow):
         if not file_path.lower().endswith('.gcode'):
             return None
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = []
-                for _ in range(30): # Kontroluje jen hlavičku
-                    line = f.readline()
-                    if not line: break
-                    content.append(line)
-                    if "; --- END METADATA ---" in line:
-                        break
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = []
+                    for _ in range(30): # Kontroluje jen hlavičku
+                        line = f.readline()
+                        if not line: break
+                        content.append(line)
+                        if "; --- END METADATA ---" in line:
+                            break
+            except UnicodeDecodeError:
+                with open(file_path, 'r', encoding='cp1250') as f:
+                    content = []
+                    for _ in range(30):
+                        line = f.readline()
+                        if not line: break
+                        content.append(line)
+                        if "; --- END METADATA ---" in line:
+                            break
                         
-                header_text = "".join(content)
-                import re
-                match = re.search(r'; --- EDITOR METADATA ---\n; (\{.*?\})\n; --- END METADATA ---', header_text, re.DOTALL)
-                if match:
-                    return json.loads(match.group(1))
+            header_text = "".join(content)
+            import re
+            match = re.search(r'; --- EDITOR METADATA ---\n; (\{.*?\})\n; --- END METADATA ---', header_text, re.DOTALL)
+            if match:
+                return json.loads(match.group(1))
         except Exception as e:
             print("Chyba čtení metadat:", e)
         return None
@@ -218,7 +230,6 @@ class GCodeApp(QMainWindow):
         lp = self.left_panel
         lp.blockSignals(True) # Zabráníme smršti událostí při nastavování GUI
         
-        if 'holder_type' in metadata: lp.cmb_holder.setCurrentText(metadata['holder_type'])
         if 'glass_type' in metadata: lp.cmb_glass.setCurrentText(metadata['glass_type'])
         if metadata.get('glass_type') == 'Vlastní':
             if 'slide_w' in metadata: lp.inp_glass_x.setText(str(metadata['slide_w']))
@@ -246,7 +257,6 @@ class GCodeApp(QMainWindow):
 
         lp.blockSignals(False)
         lp._toggle_custom_glass()
-        lp._toggle_bed_heating()
 
     def _apply_metadata_to_overrides_and_transforms(self, metadata):
         # 1. Transformace plátna
@@ -330,6 +340,7 @@ class GCodeApp(QMainWindow):
             if metadata:
                 self._apply_metadata_to_overrides_and_transforms(metadata)
 
+            self.first_load_pending = True
             self.update_preview()
         except NeedsScalingError as e:
             odpoved = QMessageBox.question(
@@ -370,7 +381,7 @@ class GCodeApp(QMainWindow):
         slide_w = params.get('slide_w', 25.0)
         slide_h = params.get('slide_h', 75.0)
         count = params.get('sample_count', 1)
-        holder_type = params.get('holder_type', 'Na jeden vzorek')
+        holder_type = "Multiplex (více sklíček)"
 
         self.right_panel.update_slides(count, params)
         slide_overrides = self.right_panel.get_overrides()
@@ -393,10 +404,18 @@ class GCodeApp(QMainWindow):
                 
         positions = get_layout_positions(count, slide_w, slide_h, spacing, holder_type, bed_x, bed_y, prime_active=prime_active)
         
-        # PŘEDÁVÁME NAČTENÉ TRANSFORMACE
+        # PŘEDÁVÁME NAČTENÉ TRANSFORMACE A PŘÍZNAK PRVNÍHO NAČTENÍ
         loaded_t = getattr(self, 'loaded_transforms', None)
-        self.graphics_view.redraw_scene(self.logic, params, (slide_w, slide_h), positions, bed_x, bed_y, loaded_transforms=loaded_t)
-        self.loaded_transforms = None # Resetujeme po prvním úspěšném překreslení
+        first_load = getattr(self, 'first_load_pending', False)
+        
+        self.graphics_view.redraw_scene(
+            self.logic, params, (slide_w, slide_h), positions, bed_x, bed_y, 
+            loaded_transforms=loaded_t, 
+            first_load=first_load
+        )
+        
+        self.loaded_transforms = None 
+        self.first_load_pending = False # Resetujeme po prvním úspěšném překreslení
 
     def apply_visual_scale(self, updates):
         if not getattr(self.logic, 'is_vector', False): return

@@ -40,7 +40,6 @@ Do NOT alter these core mechanics without explicit user instruction:
 2. **Z-Height & PINDA Calibration:**
    - The printer uses a manual PINDA probe trick. The probe is physically lowered to the glass surface, making physical Z=0 align with the top of the glass.
    - Do NOT add glass thickness to the G-code `Z` coordinate. The G-code should only contain the requested `z_offset` (layer height).
-   - *Exception:* If `holder_type` is "Na jeden vzorek", exactly 4.0 mm is added to the Z-height to compensate for the specific physical holder.
 3. **Configuration Flow:**
    - Base settings (bed size, offsets, start G-codes) are strictly loaded from `settings_default.json` and saved to `settings.json`.
    - Do NOT hardcode physical dimensions or layout offsets in `config.py`.

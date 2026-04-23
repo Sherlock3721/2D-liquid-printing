@@ -234,12 +234,19 @@ class InteractiveGraphicsView(QGraphicsView):
         self.gcode_items.clear()
 
         view_parent = self.parent()
-        logic = view_parent.parent().logic if view_parent and hasattr(view_parent.parent(), 'logic') else None
+        # Získání logiky a parametrů z hlavního okna
+        main_window = view_parent.parent() if view_parent else None
+        logic = main_window.logic if main_window and hasattr(main_window, 'logic') else None
+        params = main_window.left_panel.get_params() if main_window and hasattr(main_window, 'left_panel') else {}
         if not logic: return
 
-        pen_print = QPen(QColor(255, 30, 30), 0.4)
+        nozzle_diam = params.get('nozzle_diam', 0.4)
+        pen_print = QPen(QColor(255, 30, 30), nozzle_diam)
         pen_print.setCapStyle(Qt.PenCapStyle.RoundCap)
-        pen_travel = QPen(QColor(150, 0, 0), 0.2, Qt.PenStyle.DashLine)
+        pen_travel = QPen(QColor(150, 0, 0), nozzle_diam/2, Qt.PenStyle.DashLine)
+
+        def view_y(gcode_y, obj_h=0): 
+            return self.bed_h - gcode_y - obj_h
 
         for data in state:
             i = data['index']
@@ -254,15 +261,27 @@ class InteractiveGraphicsView(QGraphicsView):
             path_travel = QPainterPath()
             gx, gy = data['allowed_rect'].x(), data['allowed_rect'].y()
             
+            # Pro výpočet Y potřebujeme vědět, kde sklíčko začíná v G-code souřadnicích
+            # allowed_rect.y() je už v souřadnicích scény (view_y)
+            # Musíme z něj získat zpět gy v G-code
+            sh = data['allowed_rect'].height()
+            gcode_gy = self.bed_h - gy - sh
+
             last_pt = None
             for px, py in zip(px_list, py_list):
+                # Přesun k novému segmentu
                 if last_pt:
-                    path_travel.moveTo(last_pt[0] + gx, gy + last_pt[1])
-                    path_travel.lineTo(px[0] + gx, gy + py[0])
+                    path_travel.moveTo(last_pt[0] + gx, view_y(last_pt[1] + gcode_gy))
+                    path_travel.lineTo(px[0] + gx, view_y(py[0] + gcode_gy))
                 
-                path_print.moveTo(px[0] + gx, gy + py[0])
-                for x, y in zip(px[1:], py[1:]):
-                    path_print.lineTo(x + gx, gy + y)
+                if len(px) == 2 and px[0] == px[1] and py[0] == py[1]:
+                    # Vizualizace kapky: malý kroužek
+                    r = max(0.4, nozzle_diam / 2.0) if 'nozzle_diam' in locals() else 0.4
+                    path_print.addEllipse(QPointF(px[0] + gx, view_y(py[0] + gcode_gy)), r, r)
+                else:
+                    path_print.moveTo(px[0] + gx, view_y(py[0] + gcode_gy))
+                    for x, y in zip(px[1:], py[1:]):
+                        path_print.lineTo(x + gx, view_y(y + gcode_gy))
                 last_pt = (px[-1], py[-1])
             
             item_travel = QGraphicsPathItem(path_travel)
@@ -271,6 +290,10 @@ class InteractiveGraphicsView(QGraphicsView):
 
             item_print = QGraphicsPathItem(path_print)
             item_print.setPen(pen_print)
+            
+            # Pokud jsou v cestě tečky, vyplníme je barvou pera
+            if any(len(p) == 2 and p[0] == p[1] and py_list[idx][0] == py_list[idx][1] for idx, p in enumerate(px_list)):
+                item_print.setBrush(QBrush(pen_print.color()))
             movable_group.addToGroup(item_print)
             
             movable_group.setZValue(1)
@@ -491,8 +514,11 @@ class InteractiveGraphicsView(QGraphicsView):
                 draw_x_axis(sy + sh, sx, sx + sw, 0, sw, pen_slide)
                 draw_y_axis(sx, sy + sh, sy, 0, sh, pen_slide)
 
-    def redraw_scene(self, logic, params, slide_dims, positions, bed_max_x, bed_max_y, loaded_transforms=None):
+    def redraw_scene(self, logic, params, slide_dims, positions, bed_max_x, bed_max_y, loaded_transforms=None, first_load=False):
         saved_transforms = {}
+        # Detekce změny rozměrů podložky pro případný reset kamery
+        bed_changed = abs(self.bed_w - bed_max_x) > 1.0 or abs(self.bed_h - bed_max_y) > 1.0
+        
         if loaded_transforms:
             for i, t in enumerate(loaded_transforms):
                 if not t.get('deleted', False):
@@ -566,19 +592,19 @@ class InteractiveGraphicsView(QGraphicsView):
                 last_pt = None
                 
                 for px, py in zip(px_list, py_list):
-                    # Přesun k novému segmentu
+                    # Přesun k novému segmentu (relativně k vnitřku sklíčka)
                     if last_pt:
-                        path_travel.moveTo(last_pt[0] + gx, view_y(last_pt[1] + gy))
-                        path_travel.lineTo(px[0] + gx, view_y(py[0] + gy))
+                        path_travel.moveTo(last_pt[0], sh - last_pt[1])
+                        path_travel.lineTo(px[0], sh - py[0])
 
-                    if len(px) == 2 and px[0] == px[1]:
-                        # Vizualizace kapky: malý kroužek o průměru trysky
-                        r = max(0.5, nozzle_diam / 2.0)
-                        path_print.addEllipse(QPointF(px[0] + gx, view_y(py[0] + gy)), r, r)
+                    if len(px) == 2 and px[0] == px[1] and py[0] == py[1]:
+                        # Vizualizace kapky (jen pokud se nemění X ani Y)
+                        r = max(0.4, nozzle_diam / 2.0)
+                        path_print.addEllipse(QPointF(px[0], sh - py[0]), r, r)
                     else:
-                        path_print.moveTo(px[0] + gx, view_y(py[0] + gy))
+                        path_print.moveTo(px[0], sh - py[0])
                         for x, y in zip(px[1:], py[1:]):
-                            path_print.lineTo(x + gx, view_y(y + gy))
+                            path_print.lineTo(x, sh - y)
                     last_pt = (px[-1], py[-1])
 
                 item_travel = QGraphicsPathItem(path_travel)
@@ -588,25 +614,30 @@ class InteractiveGraphicsView(QGraphicsView):
                 item_print = QGraphicsPathItem(path_print)
                 item_print.setPen(pen_print)
                 
-                # Pokud jsou v cestě tečky, vyplníme je barvou pera
-                if any(len(p) == 2 and p[0] == p[1] for p in px_list):
+                if any(len(p) == 2 and p[0] == p[1] and py_list[idx][0] == py_list[idx][1] for idx, p in enumerate(px_list)):
                     item_print.setBrush(QBrush(pen_print.color()))
                     
                 movable_group.addToGroup(item_print)
                 movable_group.setZValue(1)
-                movable_group.setTransformOriginPoint(item_print.boundingRect().topLeft())
                 
+                # Klíčová změna: Skupina se umístí na absolutní souřadnice, 
+                # ale její obsah je relativní.
                 if i in saved_transforms:
                     movable_group.setScale(saved_transforms[i]['scale'])
                     movable_group.setPos(saved_transforms[i]['pos'])
+                else:
+                    movable_group.setPos(gx, sy)
+                
+                movable_group.setTransformOriginPoint(item_print.boundingRect().center())
                 
                 self.scene.addItem(movable_group)
                 self.gcode_items.append(movable_group)
 
             for item in self.gcode_items: item.siblings = self.gcode_items
 
-        self.fitInView(QRectF(0, 0, bed_max_x, bed_max_y), Qt.AspectRatioMode.KeepAspectRatio)
-        self.centerOn(bed_max_x / 2.0, bed_max_y / 2.0)
+        if first_load or bed_changed:
+            self.fitInView(QRectF(0, 0, bed_max_x, bed_max_y), Qt.AspectRatioMode.KeepAspectRatio)
+            self.centerOn(bed_max_x / 2.0, bed_max_y / 2.0)
         
     def update_nozzle_position(self, x, y, z, is_extruding):
         if not hasattr(self, 'bed_h'): return

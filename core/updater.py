@@ -151,9 +151,8 @@ class AutoUpdater(QThread):
             self.error.emit(f"Chyba při stahování aktualizace: {e}")
 
     def _prepare_update_script(self, new_exe_path):
-        # Pokud jsme v developmentu (ne frozen), zkusíme nahradit argv[0] (main.py)
-        # ale raději budeme varovat. Pro autoupdater je primární frozen režim.
         current_exe = sys.executable if getattr(sys, 'frozen', False) else os.path.abspath(sys.argv[0])
+        exe_name = os.path.basename(current_exe)
         temp_dir = tempfile.gettempdir()
         
         if sys.platform.startswith("win"):
@@ -165,6 +164,7 @@ echo Aktualizuji Droplet Printing Interface (DPI)...
 echo Prosim cekejte, dokud se okno samo nezavre...
 
 rem Pokusime se aplikaci ukoncet pokud bezi
+taskkill /IM "{exe_name}" /F > NUL 2>&1
 taskkill /IM main.exe /F > NUL 2>&1
 taskkill /IM DPI.exe /F > NUL 2>&1
 
@@ -177,7 +177,7 @@ if %RETRY% GTR 20 (
     exit /b 1
 )
 
-timeout /t 1 /nobreak > NUL
+timeout /t 2 /nobreak > NUL
 move /Y "{new_exe_path}" "{current_exe}"
 if errorlevel 1 (
     echo Aplikace je stale blokovana, pokus %RETRY% z 20...

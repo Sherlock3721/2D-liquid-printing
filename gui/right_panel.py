@@ -90,34 +90,107 @@ class RightPanel(QWidget):
                 inp_name.textChanged.connect(lambda text, b=box, idx=i: b.toggle_button.setText(text if text.strip() else f"Sklíčko {idx + 1}"))
                 inp_note = QLineEdit(); inp_note.setPlaceholderText("Poznámka...")
                 inp_z = QDoubleSpinBox(); inp_z.setRange(0.0, 5.0); inp_z.setSingleStep(0.05)
-                inp_ext = QDoubleSpinBox(); inp_ext.setRange(0.001, 100.0); inp_ext.setSingleStep(0.1); inp_ext.setDecimals(3)
+                
+                # --- EXTRUZE S VÝBĚREM JEDNOTEK ---
+                widget_ext = QWidget(); layout_ext = QHBoxLayout(widget_ext); layout_ext.setContentsMargins(0, 0, 0, 0)
+                inp_ext = QDoubleSpinBox(); inp_ext.setRange(0.0001, 10000.0); inp_ext.setSingleStep(0.1); inp_ext.setDecimals(4)
+                cmb_ext_units = QComboBox()
+                self.ext_unit_options = {
+                    "µl/mm": 1.0, "nl/mm": 0.001, "kroky/mm": 1.0
+                }
+                cmb_ext_units.addItems(list(self.ext_unit_options.keys()))
+                layout_ext.addWidget(inp_ext); layout_ext.addWidget(cmb_ext_units)
+                
                 inp_speed = QSpinBox(); inp_speed.setRange(10, 10000); inp_speed.setSingleStep(100)
                 widget_infill = QWidget(); layout_infill = QHBoxLayout(widget_infill); layout_infill.setContentsMargins(0, 0, 0, 0)
                 inp_infill = QDoubleSpinBox(); inp_infill.setRange(0.1, 200.0); inp_infill.setSingleStep(0.1)
                 cmb_infill_type = QComboBox(); cmb_infill_type.addItems(["mm", "%"])
                 layout_infill.addWidget(inp_infill); layout_infill.addWidget(cmb_infill_type)
+                
+                # Napojení signálů
                 inp_z.valueChanged.connect(lambda val, idx=i: self.mark_modified(idx, 'z_offset'))
                 inp_ext.valueChanged.connect(lambda val, idx=i: self.mark_modified(idx, 'extrusion_rate'))
+                cmb_ext_units.currentTextChanged.connect(lambda unit, idx=i: self._handle_ext_unit_change_local(idx, unit))
                 inp_speed.valueChanged.connect(lambda val, idx=i: self.mark_modified(idx, 'print_speed'))
                 inp_infill.valueChanged.connect(lambda val, idx=i: self.mark_modified(idx, 'infill_val'))
                 cmb_infill_type.currentIndexChanged.connect(lambda val, idx=i: self.mark_modified(idx, 'infill_type'))
+                
                 form.addRow(btn_reset)
                 form.addRow("Název:", inp_name); form.addRow("Poznámka:", inp_note); form.addRow("Z-offset [mm]:", inp_z)
-                form.addRow("Extruze [µl/mm]:", inp_ext); form.addRow("Rychlost [mm/min]:", inp_speed); form.addRow("Výplň:", widget_infill)
+                form.addRow("Extruze:", widget_ext); form.addRow("Rychlost [mm/min]:", inp_speed); form.addRow("Výplň:", widget_infill)
                 self.scroll_layout.addWidget(box)
                 self.slide_widgets[i] = {
-                    'name': inp_name, 'note': inp_note, 'z_offset': inp_z, 'extrusion_rate': inp_ext,
-                    'print_speed': inp_speed, 'infill_val': inp_infill, 'infill_type': cmb_infill_type
+                    'name': inp_name, 'note': inp_note, 'z_offset': inp_z, 'extrusion_rate': inp_ext, 'ext_units': cmb_ext_units,
+                    'print_speed': inp_speed, 'infill_val': inp_infill, 'infill_type': cmb_infill_type, 'last_unit': "µl/mm"
                 }
             self._is_syncing = False
         self.sync_globals(global_params)
 
+    def _handle_ext_unit_change_local(self, idx, new_unit):
+        """Přepočítá hodnotu extruze při změně jednotek u konkrétního sklíčka."""
+        if idx not in self.slide_widgets: return
+        data = self.slide_widgets[idx]
+        old_unit = data.get('last_unit', "µl/mm")
+        old_val = data['extrusion_rate'].value()
+        
+        # Načteme kalibrační faktor
+        from gui.settings import load_settings
+        import math
+        settings = load_settings()
+        filament_diam = settings.get('filament_diameter', 9.5)
+        default_cal = 1.0 / (math.pi * ((filament_diam / 2.0) ** 2))
+        cal_factor = settings.get("calibration_factor", default_cal)
+        
+        # Převod: stará hodnota -> µl/mm
+        if old_unit == "kroky/mm":
+            base_val = old_val / cal_factor
+        else:
+            base_val = old_val * self.ext_unit_options.get(old_unit, 1.0)
+            
+        # Převod: µl/mm -> nová hodnota
+        if new_unit == "kroky/mm":
+            new_val = base_val * cal_factor
+            data['extrusion_rate'].setDecimals(1)
+            data['extrusion_rate'].setSingleStep(0.1)
+        else:
+            new_val = base_val / self.ext_unit_options.get(new_unit, 1.0)
+            data['extrusion_rate'].setDecimals(4)
+            data['extrusion_rate'].setSingleStep(0.1)
+        
+        data['extrusion_rate'].blockSignals(True)
+        data['extrusion_rate'].setValue(new_val)
+        data['extrusion_rate'].blockSignals(False)
+        data['last_unit'] = new_unit
+        self.mark_modified(idx, 'extrusion_rate')
+
     def sync_globals(self, global_params):
         self._is_syncing = True
+        
+        # Načteme kalibrační faktor
+        from gui.settings import load_settings
+        import math
+        settings = load_settings()
+        filament_diam = settings.get('filament_diameter', 9.5)
+        default_cal = 1.0 / (math.pi * ((filament_diam / 2.0) ** 2))
+        cal_factor = settings.get("calibration_factor", default_cal)
+
         for i, widgets in self.slide_widgets.items():
             mods = self.local_modifications[i]
             if not mods['z_offset']: widgets['z_offset'].setValue(global_params.get('z_offset', 0.2))
-            if not mods['extrusion_rate']: widgets['extrusion_rate'].setValue(global_params.get('extrusion_rate', 0.05))
+            if not mods['extrusion_rate']: 
+                # Synchronizace extruze (převod na aktuálně vybranou lokální jednotku)
+                base_ext = global_params.get('extrusion_rate', 1.0) # Vždy v µl/mm (internal)
+                current_unit = widgets['ext_units'].currentText()
+                if current_unit == "kroky/mm":
+                    widgets['extrusion_rate'].setDecimals(1)
+                    widgets['extrusion_rate'].setSingleStep(0.1)
+                    widgets['extrusion_rate'].setValue(base_ext * cal_factor)
+                else:
+                    factor = self.ext_unit_options.get(current_unit, 1.0)
+                    widgets['extrusion_rate'].setDecimals(4)
+                    widgets['extrusion_rate'].setSingleStep(0.1)
+                    widgets['extrusion_rate'].setValue(base_ext / factor)
+                widgets['last_unit'] = current_unit
             if not mods['print_speed']: widgets['print_speed'].setValue(global_params.get('print_speed', 1500))
             if not mods['infill_val']: widgets['infill_val'].setValue(global_params.get('infill_val', 1.0))
             if not mods['infill_type']: widgets['infill_type'].setCurrentText(global_params.get('infill_type', 'mm'))
@@ -133,16 +206,34 @@ class RightPanel(QWidget):
             'z_offset': False, 'extrusion_rate': False, 
             'print_speed': False, 'infill_val': False, 'infill_type': False
         }
-        if self.last_global_params: self.sync_globals(self.last_global_params)
+        if self.last_global_params: 
+            self.sync_globals(self.last_global_params)
         self.values_changed.emit()
 
     def get_overrides(self):
         overrides = {}
+        
+        # Načteme kalibrační faktor
+        from gui.settings import load_settings
+        import math
+        settings = load_settings()
+        filament_diam = settings.get('filament_diameter', 9.5)
+        default_cal = 1.0 / (math.pi * ((filament_diam / 2.0) ** 2))
+        cal_factor = settings.get("calibration_factor", default_cal)
+
         for i, data in self.slide_widgets.items():
             mods = self.local_modifications[i]
             slide_data = {'name': data['name'].text() or data['name'].placeholderText(), 'note': data['note'].text()}
             if mods['z_offset']: slide_data['z_offset'] = data['z_offset'].value()
-            if mods['extrusion_rate']: slide_data['extrusion_rate'] = data['extrusion_rate'].value()
+            if mods['extrusion_rate']: 
+                # Převod zpět na základní jednotku pro generátor
+                unit = data['ext_units'].currentText()
+                if unit == "kroky/mm":
+                    slide_data['extrusion_rate'] = data['extrusion_rate'].value() / cal_factor
+                else:
+                    factor = self.ext_unit_options.get(unit, 1.0)
+                    slide_data['extrusion_rate'] = data['extrusion_rate'].value() * factor
+                slide_data['extrusion_unit'] = unit
             if mods['print_speed']: slide_data['print_speed'] = data['print_speed'].value()
             if mods['infill_val']: slide_data['infill_val'] = data['infill_val'].value()
             if mods['infill_type']: slide_data['infill_type'] = data['infill_type'].currentText()

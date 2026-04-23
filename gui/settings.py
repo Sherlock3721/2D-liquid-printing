@@ -97,14 +97,14 @@ class SettingsDialog(QDialog):
         self.inp_retract = QDoubleSpinBox(); self.inp_retract.setRange(0.0, 50.0); self.inp_retract.setSingleStep(0.1); self.inp_retract.setSuffix(" mm")
         self.inp_retract.setValue(self.settings.get("retraction", 1.0))
         
-        self.inp_filament_d = QDoubleSpinBox(); self.inp_filament_d.setRange(0.1, 10.0); self.inp_filament_d.setSingleStep(0.01); self.inp_filament_d.setSuffix(" mm")
-        self.inp_filament_d.setValue(self.settings.get("filament_diameter", 1.75))
+        self.inp_filament_d = QDoubleSpinBox(); self.inp_filament_d.setRange(0.1, 50.0); self.inp_filament_d.setSingleStep(0.01); self.inp_filament_d.setSuffix(" mm")
+        self.inp_filament_d.setValue(self.settings.get("filament_diameter", 9.5))
         
         self.inp_flow_mult = QDoubleSpinBox(); self.inp_flow_mult.setRange(0.1, 10.0); self.inp_flow_mult.setSingleStep(0.05)
         self.inp_flow_mult.setValue(self.settings.get("flow_multiplier", 1.0))
 
         ext_form.addRow("Rychlost tisku:", self.inp_speed); ext_form.addRow("Retrakce:", self.inp_retract)
-        ext_form.addRow("Průměr filamentu:", self.inp_filament_d); ext_form.addRow("Flow multiplikátor:", self.inp_flow_mult)
+        ext_form.addRow("Vnitřní průměr stříkačky:", self.inp_filament_d); ext_form.addRow("Flow multiplikátor:", self.inp_flow_mult)
         lay_extruze.addLayout(ext_form)
         lay_extruze.addStretch()
         tabs.addTab(tab_extruze, "Extruze")
@@ -162,7 +162,41 @@ class SettingsDialog(QDialog):
         lay_hw.addStretch()
         tabs.addTab(tab_hw, "Podložka")
 
-        # --- ZÁLOŽKA 3: G-code ---
+        # --- ZÁLOŽKA 3: Převody & Kalibrace ---
+        tab_cal = QWidget()
+        lay_cal = QVBoxLayout(tab_cal)
+        lay_cal.addWidget(QLabel("<b>Kalibrace extruze (Objem -> Kroky):</b>"))
+        lay_cal.addWidget(QLabel("Tento koeficient určuje, kolik 'E' jednotek (mm filamentu) odpovídá 1 µl kapaliny."))
+        
+        cal_form = QFormLayout()
+        self.inp_cal_factor = QDoubleSpinBox()
+        self.inp_cal_factor.setRange(0.0001, 1000.0)
+        self.inp_cal_factor.setDecimals(6)
+        self.inp_cal_factor.setSingleStep(0.01)
+        
+        # Výpočet výchozího faktoru pokud v nastavení chybí
+        filament_diam = self.settings.get('filament_diameter', 9.5)
+        import math
+        default_cal = 1.0 / (math.pi * ((filament_diam / 2.0) ** 2))
+        self.inp_cal_factor.setValue(self.settings.get("calibration_factor", default_cal))
+        
+        cal_form.addRow("Kalibrační faktor [E-jednotka / µl]:", self.inp_cal_factor)
+        lay_cal.addLayout(cal_form)
+        
+        # Informační text
+        info_label = QLabel(
+            "<br><b>Nápověda pro stříkačku (vnitřní průměr 9.5 mm):</b><br>"
+            "Plocha pístu je cca 70.88 mm².<br>"
+            "1 mm posunu pístu = cca 70.88 µl kapaliny.<br>"
+            "1 µl = cca 0.0141 mm posunu pístu (jednotka E v G-kódu).<br>"
+            "<i>Poznámka: Hodnota 1.0 znamená, že 1 µl = 1 mm posunu pístu.</i>"
+        )
+        info_label.setWordWrap(True)
+        lay_cal.addWidget(info_label)
+        lay_cal.addStretch()
+        tabs.addTab(tab_cal, "Převody")
+
+        # --- ZÁLOŽKA 4: G-code ---
         tab_gcode = QWidget(); lay_gcode = QVBoxLayout(tab_gcode)
         lay_gcode.addWidget(QLabel("<b>Hlavní startovací G-code:</b>"))
         self.txt_start = QTextEdit(); self.txt_start.setPlainText(self.settings.get("start_gcode", "").replace('\\n', '\n')); lay_gcode.addWidget(self.txt_start)
@@ -266,6 +300,7 @@ class SettingsDialog(QDialog):
             "print_speed": self.inp_speed.value(), "retraction": self.inp_retract.value(),
             "filament_diameter": self.inp_filament_d.value(),
             "flow_multiplier": self.inp_flow_mult.value(),
+            "calibration_factor": self.inp_cal_factor.value(),
             "start_gcode": self.txt_start.toPlainText(), "end_gcode": self.txt_end.toPlainText(),
             "loop_start_gcode": self.txt_loop_start.toPlainText(), "loop_end_gcode": self.txt_loop_end.toPlainText(),
             "nozzle_defs": new_nozzles,

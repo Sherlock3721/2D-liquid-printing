@@ -12,11 +12,20 @@ def generate_gcode(logic, params):
     settings = load_settings()
     
     # Inicializace logiky pro extruzi
-    filament_diam = params.get('filament_diameter', 1.75)
+    filament_diam = params.get('filament_diameter', 9.5)
     flow_mult = params.get('flow_multiplier', 1.0)
-    ext_calc = ExtrusionCalculator(filament_diameter=filament_diam, flow_multiplier=flow_mult)
+    
+    # Výchozí kalibrační faktor z průměru filamentu (1 µl = 1 mm³)
+    default_cal = 1.0 / (math.pi * ((filament_diam / 2.0) ** 2))
+    cal_factor = settings.get("calibration_factor", default_cal)
+    
+    ext_calc = ExtrusionCalculator(
+        filament_diameter=filament_diam, 
+        flow_multiplier=flow_mult,
+        calibration_factor=cal_factor
+    )
 
-    typ_drzaku = params.get('holder_type', 'Na jeden vzorek')
+    typ_drzaku = "Multiplex (více sklíček)"
     z_offset = params.get('z_offset', 0.2)
     pocet_vzorku = params.get('sample_count', 1)
     bed_temp = params.get('bed_temp', 0)
@@ -37,7 +46,7 @@ def generate_gcode(logic, params):
     retract_speed = 3000
 
     correction_z = settings.get("correction_z", 0.0)
-    holder_z = HOLDER_THICKNESS.get(typ_drzaku, 0.0)
+    holder_z = 0.0
     surface_z = holder_z + slide_z + correction_z
 
     total_dist = 0.0
@@ -47,7 +56,7 @@ def generate_gcode(logic, params):
     result.append(settings["start_gcode"])
     if not result[-1].endswith("\n"): result.append("\n")
 
-    if typ_drzaku == "Multiplex (více sklíček)" and bed_temp > 0:
+    if bed_temp > 0:
         result.append(f"M140 S{bed_temp} ; Zacit nahrivat podlozku\n")
         result.append(f"M190 S{bed_temp} ; Pockat na nahrati podlozky na {bed_temp} C\n")
         total_time_sec += 60 # Odhad 1 minuta na nahřátí
@@ -75,7 +84,8 @@ def generate_gcode(logic, params):
         loc_infill_style = current_overrides.get('infill_style', infill_style)
         
         # Výpočet extruze pomocí nové logiky
-        loc_e_per_mm = ext_calc.calculate_e_per_mm(loc_ext, nozzle_diam, loc_spd)
+        loc_unit = current_overrides.get('extrusion_unit', params.get('extrusion_unit', 'µl/mm'))
+        loc_e_per_mm = ext_calc.calculate_e_per_mm(loc_ext, loc_unit, nozzle_diam, loc_spd)
         print_z = surface_z + loc_z
 
         t = transforms[measurement_idx] if transforms and not is_prime and measurement_idx < len(transforms) else None
@@ -150,8 +160,9 @@ def generate_gcode(logic, params):
                     last_abs_x, last_abs_y = abs_x, abs_y
 
                     if loc_infill_style == "Tečky" and len(px) == 2 and px[0] == px[1]:
-                        # loc_ext v tomto případě interpretujeme jako µl na jednu kapku
-                        dot_e = ext_calc.calculate_dot_extrusion(loc_ext)
+                        # loc_ext v tomto případě interpretujeme jako µl (nebo kroky) na jednu kapku
+                        dot_unit = "kroky" if loc_unit == "kroky/mm" else "µl"
+                        dot_e = ext_calc.calculate_dot_extrusion(loc_ext, dot_unit)
                         result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop nad bod\n")
                         result.append(f"G0 X{abs_x:.3f} Y{abs_y:.3f} F3000\n")
                         result.append(f"G0 Z{print_z:.3f} F1000 ; Klesnuti k povrchu\n")
@@ -216,11 +227,8 @@ def generate_gcode(logic, params):
 
         result.append(settings["loop_end_gcode"])
         if not result[-1].endswith("\n"): result.append("\n")
-        if typ_drzaku == "Na jeden vzorek" and not is_prime and measurement_idx < pocet_vzorku:
-            result.append("; --- PAUZA PRO VÝMĚNU VZORKU ---\nG0 Z20.0 F1000\nG0 X10 Y200 F3000\nM0 Vymen vzorek\n")
-            total_time_sec += 10 # Odhad pauzy
 
-    if typ_drzaku == "Multiplex (více sklíček)" and bed_temp > 0: result.append("M140 S0 ; Vypnout vyhrivani podlozky\n")
+    if bed_temp > 0: result.append("M140 S0 ; Vypnout vyhrivani podlozky\n")
     result.append(settings["end_gcode"])
     if not result[-1].endswith("\n"): result.append("\n")
     return "".join(result), total_dist, total_time_sec

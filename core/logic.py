@@ -6,7 +6,6 @@ from gui.settings import load_settings
 
 # Skutečná fyzická tloušťka podkladu pod sklíčkem
 HOLDER_THICKNESS = {
-    "Na jeden vzorek": 4.0,
     "Multiplex (více sklíček)": 0.0 
 }
 
@@ -20,38 +19,37 @@ def get_layout_positions(count, slide_w, slide_h, spacing, holder_type, bed_max_
     positions = []
     # Formát: (x, y, w, h, is_prime)
     
-    if holder_type == "Na jeden vzorek":
-        # Hlavní vzorek (Front-Right)
-        main_x = bed_max_x - start_x - slide_w
-        positions.append((main_x, start_y, slide_w, slide_h, False))
-        
-        if prime_active:
-            # Odpliv: 76x26 otočené na 26x76, posunuté o 20mm vlevo od hlavního skla
-            p_w, p_h = 26.0, 76.0 
-            p_x = main_x - 20.0 - p_w
-            positions.append((p_x, start_y, p_w, p_h, True))
-            
-        return positions
-
     # Multiplex: Začínáme vpravo vpředu
-    curr_x = bed_max_x - start_x - slide_w
     curr_y = start_y
+    base_right = bed_max_x - start_x
     
-    # První přidáme odpliv, pokud je aktivní
+    # Šířka aktuálního sloupce (první sloupec může být širší kvůli odplivu)
+    current_col_w = max(76.0, slide_w) if prime_active else slide_w
+    curr_col_left = base_right - current_col_w
+    
     if prime_active:
-        positions.append((curr_x, curr_y, slide_w, slide_h, True))
-        curr_y += (slide_h + spacing)
+        p_w, p_h = 76.0, 26.0
+        # Odpliv zarovnáme k pravému okraji (base_right)
+        p_x = base_right - p_w
+        positions.append((p_x, curr_y, p_w, p_h, True))
+        curr_y += (p_h + spacing)
 
     for i in range(count):
-        # Pokud přetečeme na výšku dozadu, posuneme se doleva na nový sloupec
-        if curr_y + slide_h > bed_max_y:
-            curr_x -= (slide_w + spacing)
+        # Pokud přetečeme na výšku dozadu, posuneme se doleva na NOVÝ SLOUPEC
+        if curr_y + slide_h > bed_max_y and len(positions) > 0:
+            # Nový pravý okraj je vlevo od nejlevnějšího bodu předchozího sloupce
+            base_right = curr_col_left - spacing
+            current_col_w = slide_w # Další sloupce už nemají prime slide
+            curr_col_left = base_right - current_col_w
             curr_y = start_y
 
-        if curr_x < 0:
+        # Pozice vzorku (vždy vpravo v rámci svého aktuálního sloupce)
+        sample_x = base_right - slide_w
+        
+        if sample_x < 0:
             break
 
-        positions.append((curr_x, curr_y, slide_w, slide_h, False))
+        positions.append((sample_x, curr_y, slide_w, slide_h, False))
         curr_y += (slide_h + spacing)
 
     return positions
@@ -80,6 +78,19 @@ class GCodeLogic:
             if user_scales is None: user_scales = {}
             if slide_overrides is None: slide_overrides = {}
             
+            # 1. Načteme geometrii jednou (bez měřítka a centrování prozatím)
+            if path.lower().endswith('.svg'):
+                slicer.load_svg(path)
+                from shapely.affinity import scale
+                slicer.geometries = [scale(g, xfact=1.0, yfact=-1.0, origin=(0, 0)) for g in slicer.geometries]
+            else:
+                slicer.load_dxf(path)
+                from shapely.affinity import scale
+                slicer.geometries = [scale(g, xfact=1.0, yfact=-1.0, origin=(0, 0)) for g in slicer.geometries]
+            
+            base_geometries = slicer.geometries
+            
+            # 2. Pro každé sklíčko aplikujeme specifické parametry (infill, měřítko)
             for i in range(sample_count):
                 vp = vector_params.copy()
                 vp['user_scale'] = user_scales.get(i, 1.0)
@@ -88,9 +99,10 @@ class GCodeLogic:
                     vp['infill_val'] = slide_overrides[i].get('infill_val', vp['infill_val'])
                     vp['infill_type'] = slide_overrides[i].get('infill_type', vp.get('infill_type', 'mm'))
                 
+                # Slicer.process_geometries (vytvoříme si ji v sliceru) provede zbytek
                 try:
-                    px, py = slicer.process(
-                        path, vp['slide_w'], vp['slide_h'], vp.get('margin', 1.5), 
+                    px, py = slicer.process_geometries(
+                        base_geometries, vp['slide_w'], vp['slide_h'], vp.get('margin', 1.5), 
                         auto_scale=auto_scale, params=vp
                     )
                     self.paths_by_index[i] = {'x': px, 'y': py}

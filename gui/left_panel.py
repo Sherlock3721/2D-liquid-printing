@@ -1,4 +1,5 @@
 import serial.tools.list_ports
+import math
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QHBoxLayout, QComboBox, 
                              QSpinBox, QDoubleSpinBox, QLineEdit, QLabel, 
                              QPushButton, QFrame, QProgressBar)
@@ -45,10 +46,6 @@ class LeftPanel(QWidget):
         # --- Podložka ---
         self.form_layout.addRow(QLabel("<b>--- Podložka ---</b>"))
         
-        self.cmb_holder = QComboBox()
-        self.cmb_holder.addItems(["Na jeden vzorek", "Multiplex (více sklíček)"])
-        self.form_layout.addRow("Typ držáku:", self.cmb_holder)
-        
         self.cmb_glass = QComboBox()
         self.cmb_glass.addItems(list(self.sklo_dims.keys()))
         self.form_layout.addRow("Sklíčko:", self.cmb_glass)
@@ -94,9 +91,29 @@ class LeftPanel(QWidget):
         self.inp_z_offset.setRange(0.0, 5.0); self.inp_z_offset.setSingleStep(0.05); self.inp_z_offset.setValue(0.2)
         self.form_layout.addRow("Tloušťka vrstvy [mm]:", self.inp_z_offset)
         
+        # --- EXTRUZE S VÝBĚREM JEDNOTEK ---
+        self.widget_extrusion = QWidget()
+        layout_ext = QHBoxLayout(self.widget_extrusion)
+        layout_ext.setContentsMargins(0, 0, 0, 0)
+        
         self.inp_extrusion = QDoubleSpinBox()
-        self.inp_extrusion.setRange(0.001, 1000.0); self.inp_extrusion.setSingleStep(1.0); self.inp_extrusion.setDecimals(3); self.inp_extrusion.setValue(10.0)
-        self.form_layout.addRow("Extruze [µl/cm]:", self.inp_extrusion)
+        self.inp_extrusion.setRange(0.0001, 10000.0); self.inp_extrusion.setSingleStep(0.1); self.inp_extrusion.setDecimals(4); self.inp_extrusion.setValue(1.0)
+        
+        self.cmb_ext_units = QComboBox()
+        # µl/mm (výchozí), nl/mm (velmi jemné), kroky/mm (přímé ovládání motoru)
+        self.ext_unit_options = {
+            "µl/mm": 1.0,      # Základní jednotka (internal)
+            "nl/mm": 0.001,    # 1 nl/mm = 0.001 µl/mm
+            "kroky/mm": 1.0    # Fallback pro přepočet v GUI
+        }
+        self.cmb_ext_units.addItems(list(self.ext_unit_options.keys()))
+        self._last_ext_unit = "µl/mm"
+        
+        layout_ext.addWidget(self.inp_extrusion)
+        layout_ext.addWidget(self.cmb_ext_units)
+        self.form_layout.addRow("Extruze:", self.widget_extrusion)
+        
+        self.cmb_ext_units.currentTextChanged.connect(self._handle_ext_unit_change)
         
         self.cmb_nozzle = QComboBox()
         self.cmb_nozzle.addItems(list(self.nozzle_defs.keys()))
@@ -170,11 +187,10 @@ class LeftPanel(QWidget):
 
         # --- Propojení událostí ---
         self._update_prime_style()
-        self.cmb_holder.currentIndexChanged.connect(self._toggle_bed_heating)
         self.cmb_glass.currentIndexChanged.connect(self._toggle_custom_glass)
         self.cmb_nozzle.currentIndexChanged.connect(self._toggle_custom_nozzle)
         
-        inputs = [self.cmb_holder, self.cmb_glass, self.cmb_nozzle, self.inp_count, self.inp_bed_temp, self.inp_z_offset, 
+        inputs = [self.cmb_glass, self.cmb_nozzle, self.inp_count, self.inp_bed_temp, self.inp_z_offset, 
                   self.inp_extrusion, self.inp_nozzle_h, self.inp_nozzle_d, self.cmb_infill_style, 
                   self.inp_infill_val, self.cmb_infill_type, self.inp_infill_angle, self.btn_prime]
         for widget in inputs:
@@ -185,7 +201,6 @@ class LeftPanel(QWidget):
         line_inputs = [self.inp_glass_x, self.inp_glass_y, self.inp_glass_z]
         for widget in line_inputs: widget.textChanged.connect(self.values_changed.emit)
 
-        self._toggle_bed_heating()
         self._toggle_custom_glass()
         self._toggle_custom_nozzle()
 
@@ -217,13 +232,6 @@ class LeftPanel(QWidget):
         is_custom = self.cmb_nozzle.currentText() == "Vlastní"
         self.widget_vlastni_tryska.setVisible(is_custom)
         self.values_changed.emit()
-        
-    def _toggle_bed_heating(self):
-        is_multiplex = self.cmb_holder.currentText() == "Multiplex (více sklíček)"
-        self.inp_bed_temp.setVisible(is_multiplex)
-        label = self.form_layout.labelForField(self.inp_bed_temp)
-        if label: label.setVisible(is_multiplex)
-        if not is_multiplex: self.inp_bed_temp.setValue(0)
             
     def _handle_bed_temp_change(self, val):
         if 0 < val < 30:
@@ -287,6 +295,38 @@ class LeftPanel(QWidget):
     def stop_print(self):
         self.worker.stop(); self.progress.setValue(0); self.set_ui_connected()
 
+    def _handle_ext_unit_change(self, new_unit):
+        """Přepočítá hodnotu extruze při změně jednotek."""
+        old_val = self.inp_extrusion.value()
+        
+        # Načteme kalibrační faktor pro převod µl -> kroky (mm filamentu)
+        settings = load_settings()
+        filament_diam = settings.get('filament_diameter', 9.5)
+        default_cal = 1.0 / (math.pi * ((filament_diam / 2.0) ** 2))
+        cal_factor = settings.get("calibration_factor", default_cal)
+        
+        # Převod: stará hodnota -> µl/mm
+        if self._last_ext_unit == "kroky/mm":
+            base_val = old_val / cal_factor
+        else:
+            base_val = old_val * self.ext_unit_options.get(self._last_ext_unit, 1.0)
+            
+        # Převod: µl/mm -> nová hodnota
+        if new_unit == "kroky/mm":
+            new_val = base_val * cal_factor
+            self.inp_extrusion.setDecimals(1)
+            self.inp_extrusion.setSingleStep(0.1) # Zaokrouhleno na 0.1 dle požadavku
+        else:
+            new_val = base_val / self.ext_unit_options.get(new_unit, 1.0)
+            self.inp_extrusion.setDecimals(4)
+            self.inp_extrusion.setSingleStep(0.1)
+        
+        self.inp_extrusion.blockSignals(True)
+        self.inp_extrusion.setValue(new_val)
+        self.inp_extrusion.blockSignals(False)
+        self._last_ext_unit = new_unit
+        self.values_changed.emit()
+
     def get_all_params(self):
         self.settings = load_settings()
         self.nozzle_defs = self.settings.get("nozzle_defs", {})
@@ -298,12 +338,21 @@ class LeftPanel(QWidget):
         nozzle_type = self.cmb_nozzle.currentText()
         if nozzle_type == "Vlastní": nozzle_h = self.inp_nozzle_h.value(); nozzle_d = self.inp_nozzle_d.value()
         else: nozzle_h, nozzle_d = self.nozzle_defs.get(nozzle_type, [30.0, 0.4])
+        # Převod extruze na základní jednotku µl/mm pro generátor (pokud to nejsou kroky)
+        current_unit = self.cmb_ext_units.currentText()
+        if current_unit == "kroky/mm":
+            ext_rate_internal = self.inp_extrusion.value()
+        else:
+            factor = self.ext_unit_options.get(current_unit, 1.0)
+            ext_rate_internal = self.inp_extrusion.value() * factor
+
         return {
-            'holder_type': self.cmb_holder.currentText(), 'glass_type': glass_type, 'slide_w': slide_w, 'slide_h': slide_h, 'slide_z': slide_z,
-            'sample_count': self.inp_count.value(), 'z_offset': self.inp_z_offset.value(), 'extrusion_rate': self.inp_extrusion.value(),
+            'holder_type': "Multiplex (více sklíček)", 'glass_type': glass_type, 'slide_w': slide_w, 'slide_h': slide_h, 'slide_z': slide_z,
+            'sample_count': self.inp_count.value(), 'z_offset': self.inp_z_offset.value(), 
+            'extrusion_rate': ext_rate_internal, 'extrusion_unit': current_unit,
             'nozzle_type': nozzle_type, 'nozzle_diam': nozzle_d, 'nozzle_height': nozzle_h,
             'print_speed': self.settings.get("print_speed", 1500), 'retraction': self.settings.get("retraction", 1.0),
-            'filament_diameter': self.settings.get("filament_diameter", 1.75),
+            'filament_diameter': self.settings.get("filament_diameter", 9.5),
             'flow_multiplier': self.settings.get("flow_multiplier", 1.0),
             'bed_temp': self.inp_bed_temp.value(), 'infill_style': self.cmb_infill_style.currentText(),
             'infill_val': self.inp_infill_val.value(), 'infill_type': self.cmb_infill_type.currentText(),
@@ -328,7 +377,6 @@ class LeftPanel(QWidget):
 
     def _aktualizovat_limit_vzorku(self):
         params = self.get_all_params()
-        if params['holder_type'] == "Na jeden vzorek": self.inp_count.setMaximum(50); return
         slide_w = params['slide_w']; slide_h = params['slide_h']
         if slide_w <= 0 or slide_h <= 0: return
         bed_x = self.settings.get("bed_max_x", 250.0); bed_y = self.settings.get("bed_max_y", 210.0)
@@ -350,8 +398,7 @@ class LeftPanel(QWidget):
     def _update_total_z(self):
         self.settings = load_settings(); correction_z = self.settings.get("correction_z", 0.0)
         params = self.get_all_params()
-        holder_type = params.get('holder_type', 'Na jeden vzorek')
-        holder_z = 4.0 if holder_type == "Na jeden vzorek" else 0.0
+        holder_z = 0.0
         slide_z = params.get('slide_z', 1.0); layer_z = params.get('z_offset', 0.2)
         total_z = holder_z + slide_z + layer_z + correction_z
         self.lbl_total_z.setText(f"{total_z:.2f} mm")

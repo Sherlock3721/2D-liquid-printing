@@ -83,11 +83,17 @@ class SerialPrinterWorker(QThread):
 
     def print_file(self, filepath, total_dist=0.0, total_time=0.0):
         self.gcode_lines = []
-        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-            for line in f:
-                clean_line = line.split(';')[0].strip()
-                if clean_line:
-                    self.gcode_lines.append(clean_line)
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        except UnicodeDecodeError:
+            with open(filepath, 'r', encoding='cp1250') as f:
+                lines = f.readlines()
+
+        for line in lines:
+            clean_line = line.split(';')[0].strip()
+            if clean_line:
+                self.gcode_lines.append(clean_line)
                     
         self.total_dist = total_dist
         self.total_time_est = total_time

@@ -31,7 +31,7 @@ def export_protocol_csv(file_path, params):
             
             writer.writerow([
                 i + 1, name, note,
-                params.get('holder_type', ''), params.get('glass_type', ''), 
+                "Multiplex (více sklíček)", params.get('glass_type', ''), 
                 params.get('slide_w', ''), params.get('slide_h', ''), params.get('slide_z', ''),
                 params.get('bed_temp', ''), params.get('nozzle_diam', ''), 
                 params.get('retraction', ''), params.get('infill_style', ''), params.get('infill_angle', ''),

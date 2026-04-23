@@ -1,6 +1,5 @@
 PyQt6==6.10.2
 pyserial==3.5
-ezdxf==1.4.3
 svgpathtools==1.7.2
 svgwrite==1.4.3
 shapely==2.1.2
