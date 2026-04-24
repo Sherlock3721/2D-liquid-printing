@@ -2,6 +2,11 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.3.6] - 2026-04-24
+
+### 🛠 Opravy chyb
+*   **Vykreslování barev v SVG:** Opraven problém, kdy se ikony v panelu ručního ovládání zobrazovaly bez barev. Kód nyní automaticky převádí CSS styly v SVG na nativní XML atributy, které jsou plně kompatibilní s Qt rendererem.
+
 ## [1.3.5] - 2026-04-24
 
 ### 🛠 Opravy chyb

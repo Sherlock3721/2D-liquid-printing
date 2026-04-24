@@ -27,25 +27,39 @@ class ManualMovementWidget(QWidget):
             self._handle_status_change("") # Počáteční nastavení stavu
 
     def _load_svg_icons(self):
-        """Načte ikony ze souboru manual_movement.svg dle inkscape:label."""
+        """Načte ikony ze souboru manual_movement.svg a opraví barvy pro QSvgRenderer."""
         self.icons = {}
         svg_path = os.path.join(os.getcwd(), "svg", "manual_movement.svg")
         if not os.path.exists(svg_path):
             print(f"Varování: Soubor {svg_path} nebyl nalezen.")
             return
 
-        # Načteme obsah SVG a dočasně odstraníme display:none, aby mohl renderer kreslit
         try:
+            import re
+            from PyQt6.QtCore import QRectF
+            
             with open(svg_path, 'r', encoding='utf-8') as f:
                 svg_data = f.read()
-            # QSvgRenderer občas ignoruje prvky s display:none, i když na ně míříme ID
-            svg_data = svg_data.replace('display:none', 'display:inline')
+            
+            # 1. Vynucení viditelnosti (odstranění display:none)
+            svg_data = re.sub(r'display\s*:\s*none', 'display:inline', svg_data)
+            
+            # 2. Fix barev: QSvgRenderer lépe zvládá atributy fill/stroke než inline styly
+            # Najdeme všechny style="..." a zkusíme z nich vytáhnout barvy do samostatných atributů
+            def fix_style(match):
+                style_str = match.group(1)
+                new_attrs = []
+                for prop in ['fill', 'stroke', 'stroke-width', 'fill-opacity', 'stroke-opacity', 'opacity']:
+                    m = re.search(f'{prop}:([^;]+)', style_str)
+                    if m:
+                        new_attrs.append(f'{prop}="{m.group(1).strip()}"')
+                return " ".join(new_attrs)
+
+            svg_data = re.sub(r'style="([^"]+)"', fix_style, svg_data)
             
             renderer = QSvgRenderer(svg_data.encode('utf-8'))
-            icon_size = 128 # Větší rozlišení pro čistší ikony
+            icon_size = 128
             
-            # Mapa inkscape:label -> ID v souboru (zjištěno z obsahu)
-            # -X -> g3, +X -> g4, XY -> g17, -Y -> g5, +Y -> g9, -Z -> g7, Z -> g11, +Z -> g13
             mapping = {
                 "g4": "plus_x", "g3": "minus_x",
                 "g9": "plus_y", "g5": "minus_y",
@@ -57,10 +71,11 @@ class ManualMovementWidget(QWidget):
                 pixmap = QPixmap(icon_size, icon_size)
                 pixmap.fill(Qt.GlobalColor.transparent)
                 painter = QPainter(pixmap)
-                # QSvgRenderer.render kreslí daný prvek do celého painteru
-                renderer.render(painter, group_id)
+                # Použijeme explicitní QRectF pro zachování měřítka a barev
+                renderer.render(painter, group_id, QRectF(0, 0, icon_size, icon_size))
                 painter.end()
                 self.icons[key] = QIcon(pixmap)
+                
         except Exception as e:
             print(f"Chyba při renderování SVG ikon: {e}")
 
