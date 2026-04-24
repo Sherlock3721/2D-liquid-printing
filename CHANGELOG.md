@@ -2,6 +2,14 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.3.2] - 2026-04-24
+
+### 🚀 Novinky a vylepšení
+*   **Automatizace kamery:**
+    *   **Auto-start:** Kamera se nyní automaticky připojí a spustí při otevření aplikace.
+    *   **Priorita externí kamery:** Systém automaticky preferuje externí USB kameru (index 1 a vyšší) před vestavěnou webkamerou.
+    *   **Rotace obrazu:** Přidáno tlačítko pro cyklickou rotaci obrazu (0°, 90°, 180°, 270°), aby byl náhled vždy správně orientován bez ohledu na fyzické uchycení kamery.
+
 ## [1.3.1] - 2026-04-24
 
 ### 🛠 Opravy a vylepšení

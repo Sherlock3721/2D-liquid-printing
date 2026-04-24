@@ -18,6 +18,7 @@ class CameraHandler(QObject):
         self.running = False
         self.thread = None
         self.lock = threading.Lock()
+        self.rotation = 0 # 0, 90, 180, 270
 
     def start(self, index=None):
         if not OPENCV_AVAILABLE: return
@@ -27,6 +28,10 @@ class CameraHandler(QObject):
         self.running = True
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
         self.thread.start()
+
+    def set_rotation(self, angle):
+        """Nastaví rotaci (0, 90, 180, 270)."""
+        self.rotation = angle % 360
 
     def stop(self):
         self.running = False
@@ -48,6 +53,14 @@ class CameraHandler(QObject):
         while self.running:
             ret, frame = self.cap.read()
             if ret:
+                # Aplikace rotace (pokud je nastavena)
+                if self.rotation == 90:
+                    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+                elif self.rotation == 180:
+                    frame = cv2.rotate(frame, cv2.ROTATE_180)
+                elif self.rotation == 270:
+                    frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                
                 self.frame_ready.emit(frame)
             else:
                 time.sleep(0.1)

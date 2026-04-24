@@ -14,27 +14,35 @@ class CameraWidget(QWidget):
         super().__init__(parent)
         self.handler = CameraHandler()
         self.handler.frame_ready.connect(self.update_frame)
+        self.current_rotation = 0
         self._setup_ui()
         
-        # Automatická detekce dostupnosti
+        # Automatická detekce a start
         self._refresh_cameras()
+        self._auto_start()
 
     def _setup_ui(self):
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(5, 5, 5, 10)
         self.main_layout.setSpacing(5)
 
-        # Hlavička s výběrem
+        # Hlavička s výběrem a rotací
         header_lay = QHBoxLayout()
         self.lbl_title = QLabel("Kamera")
         self.lbl_title.setStyleSheet("font-weight: bold; color: #aaa;")
         
+        self.btn_rotate = QPushButton("⟳")
+        self.btn_rotate.setFixedSize(30, 24)
+        self.btn_rotate.setToolTip("Otočit obraz o 90°")
+        self.btn_rotate.clicked.connect(self._rotate_camera)
+        
         self.cmb_source = QComboBox()
-        self.cmb_source.setFixedWidth(120)
+        self.cmb_source.setFixedWidth(110)
         self.cmb_source.currentIndexChanged.connect(self._on_source_changed)
         
         header_lay.addWidget(self.lbl_title)
         header_lay.addStretch()
+        header_lay.addWidget(self.btn_rotate)
         header_lay.addWidget(self.cmb_source)
         self.main_layout.addLayout(header_lay)
 
@@ -56,6 +64,7 @@ class CameraWidget(QWidget):
             self.viewfinder.setText("Chybí knihovna OpenCV\n(pip install opencv-python)")
             self.btn_toggle.setEnabled(False)
             self.cmb_source.setEnabled(False)
+            self.btn_rotate.setEnabled(False)
 
     def _refresh_cameras(self):
         """Zjistí dostupné kamery a naplní dropdown."""
@@ -64,16 +73,40 @@ class CameraWidget(QWidget):
         cameras = CameraHandler.get_available_cameras()
         if not cameras:
             self.cmb_source.addItem("Nenalezena")
-            # Pokud není kamera, můžeme widget schovat nebo nechat jen info
-            # Prozatím ho necháme viditelný pro info, ale schováme viewfinder
             self.viewfinder.setVisible(False)
             self.btn_toggle.setVisible(False)
+            self.btn_rotate.setVisible(False)
         else:
             for idx in cameras:
-                self.cmb_source.addItem(f"USB Kamera {idx}", idx)
+                label = f"USB Kamera {idx}"
+                if idx > 0: label += " (Ext.)"
+                self.cmb_source.addItem(label, idx)
+            
+            # Prioritní volba: pokud existuje index > 0 (externí), vyber ho
+            ext_idx = -1
+            for i in range(self.cmb_source.count()):
+                if self.cmb_source.itemData(i) > 0:
+                    ext_idx = i
+                    break
+            if ext_idx != -1:
+                self.cmb_source.setCurrentIndex(ext_idx)
+
             self.viewfinder.setVisible(True)
             self.btn_toggle.setVisible(True)
+            self.btn_rotate.setVisible(True)
         self.cmb_source.blockSignals(False)
+
+    def _auto_start(self):
+        """Automaticky spustí kameru při startu aplikace."""
+        if OPENCV_AVAILABLE and self.cmb_source.currentData() is not None and self.cmb_source.currentData() != -1:
+            if self.cmb_source.currentText() != "Nenalezena":
+                self.btn_toggle.setChecked(True)
+                self._toggle_camera(True)
+
+    def _rotate_camera(self):
+        """Cyklicky mění rotaci obrazu."""
+        self.current_rotation = (self.current_rotation + 90) % 360
+        self.handler.set_rotation(self.current_rotation)
 
     def _on_source_changed(self):
         if self.btn_toggle.isChecked():
