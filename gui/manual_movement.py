@@ -27,31 +27,42 @@ class ManualMovementWidget(QWidget):
             self._handle_status_change("") # Počáteční nastavení stavu
 
     def _load_svg_icons(self):
-        """Načte ikony ze souboru manual_movement.svg dle ID skupin."""
+        """Načte ikony ze souboru manual_movement.svg dle inkscape:label."""
         self.icons = {}
         svg_path = os.path.join(os.getcwd(), "svg", "manual_movement.svg")
         if not os.path.exists(svg_path):
             print(f"Varování: Soubor {svg_path} nebyl nalezen.")
             return
 
-        renderer = QSvgRenderer(svg_path)
-        icon_size = 64
-        
-        # Mapa Group ID v SVG -> Klíč v self.icons
-        mapping = {
-            "+X": "plus_x", "-X": "minus_x",
-            "+Y": "plus_y", "-Y": "minus_y",
-            "+Z": "plus_z", "-Z": "minus_z",
-            "XY": "home_xy", "Z": "home_z"
-        }
-        
-        for group_id, key in mapping.items():
-            pixmap = QPixmap(icon_size, icon_size)
-            pixmap.fill(Qt.GlobalColor.transparent)
-            painter = QPainter(pixmap)
-            renderer.render(painter, group_id)
-            painter.end()
-            self.icons[key] = QIcon(pixmap)
+        # Načteme obsah SVG a dočasně odstraníme display:none, aby mohl renderer kreslit
+        try:
+            with open(svg_path, 'r', encoding='utf-8') as f:
+                svg_data = f.read()
+            # QSvgRenderer občas ignoruje prvky s display:none, i když na ně míříme ID
+            svg_data = svg_data.replace('display:none', 'display:inline')
+            
+            renderer = QSvgRenderer(svg_data.encode('utf-8'))
+            icon_size = 128 # Větší rozlišení pro čistší ikony
+            
+            # Mapa inkscape:label -> ID v souboru (zjištěno z obsahu)
+            # -X -> g3, +X -> g4, XY -> g17, -Y -> g5, +Y -> g9, -Z -> g7, Z -> g11, +Z -> g13
+            mapping = {
+                "g4": "plus_x", "g3": "minus_x",
+                "g9": "plus_y", "g5": "minus_y",
+                "g13": "plus_z", "g7": "minus_z",
+                "g17": "home_xy", "g11": "home_z"
+            }
+            
+            for group_id, key in mapping.items():
+                pixmap = QPixmap(icon_size, icon_size)
+                pixmap.fill(Qt.GlobalColor.transparent)
+                painter = QPainter(pixmap)
+                # QSvgRenderer.render kreslí daný prvek do celého painteru
+                renderer.render(painter, group_id)
+                painter.end()
+                self.icons[key] = QIcon(pixmap)
+        except Exception as e:
+            print(f"Chyba při renderování SVG ikon: {e}")
 
     def _setup_ui(self):
         self.main_layout = QVBoxLayout(self)

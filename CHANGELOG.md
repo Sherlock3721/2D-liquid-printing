@@ -2,6 +2,11 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.3.5] - 2026-04-24
+
+### 🛠 Opravy chyb
+*   **Oprava SVG ikon:** Vyřešen problém s nenačítáním ikon v panelu ručního ovládání. Ikony jsou nyní správně mapovány na XML ID prvků a je zajištěno jejich vykreslení i v případě, že jsou v původním SVG souboru skryté.
+
 ## [1.3.4] - 2026-04-24
 
 ### 🚀 Novinky a vylepšení
