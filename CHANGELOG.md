@@ -2,6 +2,12 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.2.5] - 2026-04-24
+
+### 🚀 Novinky a vylepšení
+*   **Robustní tisk pod úroveň Z=0 (G92 Shift):** Implementována spolehlivá metoda pro tisk v záporných výškách (když je tryska fyzicky výše než PINDA sonda). Aplikace nyní automaticky vypočítá potřebný posun a pomocí příkazu `G92` virtuálně posune souřadný systém nahoru. To umožňuje trysce sjet až na sklo bez chybových hlášek tiskárny ("Z level enforced").
+*   **Odstranění M211:** Vzhledem k nespolehlivosti příkazů pro vypnutí endstopů u některých verzí firmware byly tyto příkazy zcela nahrazeny výše zmíněným posunem.
+
 ## [1.2.4] - 2026-04-24
 
 ### 🛠 Opravy chyb

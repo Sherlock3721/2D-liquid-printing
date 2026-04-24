@@ -52,34 +52,40 @@ def generate_gcode(logic, params):
     total_dist = 0.0
     total_time_sec = 0.0
 
+    # --- VÝPOČET FINÁLNÍHO Z A MOŽNÉHO POSUNU (SHIFT) ---
+    # Pokud tiskárna odmítá jet pod Z=0 (limit PINDA sondy), použijeme trik s G92.
+    # Zjistíme nejnižší Z v celém souboru.
+    min_needed_z = 999.0
+    
+    def get_abs_z(loc_z_off, loc_nz_h, loc_nz_hid, loc_sl_z):
+        return -block_h + loc_nz_h - loc_nz_hid + loc_sl_z + loc_z_off
+
+    # Prověříme základní parametry a odpliv
+    min_needed_z = min(min_needed_z, get_abs_z(z_offset, params.get('nozzle_height', 30.0), hidden_h, slide_z))
+    
+    # Prověříme všechna sklíčka a jejich případné override
+    for m_idx in range(pocet_vzorku):
+        overrides = slide_overrides.get(str(m_idx), {})
+        loc_z = overrides.get('z_offset', z_offset)
+        loc_nz_h = overrides.get('nozzle_height', params.get('nozzle_height', 30.0))
+        loc_nz_hid = overrides.get('nozzle_hidden', hidden_h)
+        min_needed_z = min(min_needed_z, get_abs_z(loc_z, loc_nz_h, loc_nz_hid, slide_z))
+
+    z_shift = 0.0
+    if min_needed_z < 0.0:
+        # Posuneme vše o abs(min_z) + malou rezervu nahoru, aby tiskárna jela v kladných číslech
+        z_shift = abs(min_needed_z) + 1.0 
+
     result = []
-    # Odstraněno M211 S1 ze začátku - způsobovalo chybu "Z level enforced", pokud byla tiskárna v mínusu z minula.
-    # Necháme proběhnout start_gcode (včetně G28/G80) v aktuálním stavu.
+    # Startovní G-code (včetně G28/G80)
     result.append(settings["start_gcode"])
     if not result[-1].endswith("\n"): result.append("\n")
 
-    # Kontrola, zda bude potřeba jet pod Z=0
-    any_negative_z = False
-    def check_z(loc_z_off, loc_nz_h, loc_nz_hid, loc_sl_z):
-        # Rezerva 0.001mm pro zaokrouhlovací chyby
-        return (-block_h + loc_nz_h - loc_nz_hid + loc_sl_z + loc_z_off) < -0.001
-    
-    if check_z(z_offset, params.get('nozzle_height', 30.0), hidden_h, slide_z):
-        any_negative_z = True
-    else:
-        for m_idx in range(pocet_vzorku):
-            overrides = slide_overrides.get(str(m_idx), {})
-            loc_z = overrides.get('z_offset', z_offset)
-            loc_nz_h = overrides.get('nozzle_height', params.get('nozzle_height', 30.0))
-            loc_nz_hid = overrides.get('nozzle_hidden', hidden_h)
-            if check_z(loc_z, loc_nz_h, loc_nz_hid, slide_z):
-                any_negative_z = True; break
-
-    if any_negative_z:
-        result.append("; --- POVOLENÍ ZÁPORNÉHO Z ---\n")
-        result.append("M211 S0 ; Vypnuti softwarovych endstopu pro tisk vzorku\n\n")
-    else:
-        result.append("M211 S1 ; Zajisteni zapnutych endstopu\n\n")
+    if z_shift > 0:
+        result.append(f"; --- VIRTUÁLNÍ POSUN Z (SHIFT {z_shift:.2f}mm) ---\n")
+        result.append(f"; Tryska musí pod úroveň PINDA sondy. Lžeme tiskárně o výšce pomocí G92.\n")
+        result.append(f"G1 Z20 F1000 ; Výjezd do bezpečné výšky\n")
+        result.append(f"G92 Z{20.0 + z_shift:.3f} ; Nastavení posunuté nuly\n\n")
 
     if bed_temp > 0:
         result.append(f"M140 S{bed_temp} ; Zacit nahrivat podlozku\n")
@@ -113,8 +119,8 @@ def generate_gcode(logic, params):
         loc_unit = current_overrides.get('extrusion_unit', params.get('extrusion_unit', 'µl/mm'))
         loc_e_per_mm = ext_calc.calculate_e_per_mm(loc_ext, loc_unit, nozzle_diam, loc_spd)
         
-        # Nový výpočet absolutního Z: - Výška bloku + Výška trysky - Schovaná část + Tloušťka skla + lokální offset
-        print_z = -block_h + loc_nozzle_h - hidden_h + slide_z + loc_z
+        # Nový výpočet absolutního Z: - Výška bloku + Výška trysky - Schovaná část + Tloušťka skla + lokální offset + virtuální posun
+        print_z = -block_h + loc_nozzle_h - hidden_h + slide_z + loc_z + z_shift
 
         t = transforms[measurement_idx] if transforms and not is_prime and measurement_idx < len(transforms) else None
         S = t['scale'] if t else 1.0
@@ -269,6 +275,5 @@ def generate_gcode(logic, params):
 
     if bed_temp > 0: result.append("M140 S0 ; Vypnout vyhrivani podlozky\n")
     result.append(settings["end_gcode"])
-    result.append("\nM211 S1 ; Vratit endstopy do bezpecneho stavu\n")
     if not result[-1].endswith("\n"): result.append("\n")
     return "".join(result), total_dist, total_time_sec
