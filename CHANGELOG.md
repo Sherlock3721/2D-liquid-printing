@@ -2,6 +2,12 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.2.3] - 2026-04-24
+
+### 🛠 Opravy chyb
+*   **Oprava "Z level enforced" při levelingu:** Odstraněn rizikový posun souřadnic `G92`. Místo toho se nyní používá bezpečnější sekvence `M211 S1` na začátku souboru (pro korektní bed leveling) a `M211 S0` až po zahomování.
+*   **Vylepšená kompatibilita endstopů:** Všechny pohyby v ose Z byly změněny z `G0` na `G1`, což zaručuje, že firmware (zejména u Prusa tiskáren) správně respektuje vypnutí softwarových endstopů i při pohybech pod úroveň nuly.
+
 ## [1.2.2] - 2026-04-24
 
 ### 🛠 Opravy chyb

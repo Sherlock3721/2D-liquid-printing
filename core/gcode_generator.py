@@ -52,38 +52,28 @@ def generate_gcode(logic, params):
     total_dist = 0.0
     total_time_sec = 0.0
 
-    # --- VÝPOČET FINÁLNÍHO Z A MOŽNÉHO POSUNU (SHIFT) ---
-    # Pokud tiskárna odmítá jet pod Z=0 i přes M211 S0, použijeme trik s G92.
-    # Zjistíme nejnižší Z v celém souboru.
-    min_needed_z = 999.0
-    
-    def get_abs_z(loc_z_off, loc_nz_h, loc_nz_hid, loc_sl_z):
-        return -block_h + loc_nz_h - loc_nz_hid + loc_sl_z + loc_z_off
-
-    # Prověříme základní parametry a odpliv
-    min_needed_z = min(min_needed_z, get_abs_z(z_offset, params.get('nozzle_height', 30.0), hidden_h, slide_z))
-    
-    # Prověříme všechna sklíčka a jejich případné override
-    for m_idx in range(pocet_vzorku):
-        overrides = slide_overrides.get(str(m_idx), {})
-        loc_z = overrides.get('z_offset', z_offset)
-        loc_nozzle_h = overrides.get('nozzle_height', params.get('nozzle_height', 30.0))
-        loc_nozzle_hidden = overrides.get('nozzle_hidden', hidden_h)
-        min_needed_z = min(min_needed_z, get_abs_z(loc_z, loc_nozzle_h, loc_nozzle_hidden, slide_z))
-
-    z_shift = 0.0
-    if min_needed_z < 0.05: # Rezerva, aby se nešlo na úplnou nulu
-        z_shift = abs(min_needed_z) + 1.0 # Posuneme vše o 1mm + chybějící kus nahoru
-
     result = []
+    # Vždy začneme zapnutím endstopů, aby bed leveling proběhl v pořádku
+    result.append("M211 S1 ; Zajisteni zapnutych endstopu pro start\n")
     result.append(settings["start_gcode"])
     if not result[-1].endswith("\n"): result.append("\n")
 
-    if z_shift > 0:
-        result.append(f"; --- POSUNUTÍ SOUŘADNIC (Z SHIFT {z_shift:.2f}mm) ---\n")
-        result.append(f"; Tiskárna odmítá záporné Z, budeme jí lhát o aktuální poloze.\n")
-        result.append(f"G0 Z10 F1000 ; Výjezd do bezpečné výšky\n")
-        result.append(f"G92 Z{10.0 + z_shift:.3f} ; Nastavení posunuté nuly\n\n")
+    # Kontrola, zda bude potřeba jet pod Z=0
+    any_negative_z = False
+    def check_z(loc_z_off, loc_nz_h, loc_nz_hid, loc_sl_z):
+        return (-block_h + loc_nz_h - loc_nz_hid + loc_sl_z + loc_z_off) < 0.01
+    
+    if check_z(z_offset, params.get('nozzle_height', 30.0), hidden_h, slide_z):
+        any_negative_z = True
+    else:
+        for m_idx in range(pocet_vzorku):
+            overrides = slide_overrides.get(str(m_idx), {})
+            if check_z(overrides.get('z_offset', z_offset), overrides.get('nozzle_height', params.get('nozzle_height', 30.0)), overrides.get('nozzle_hidden', hidden_h), slide_z):
+                any_negative_z = True; break
+
+    if any_negative_z:
+        result.append("; --- POVOLENÍ ZÁPORNÉHO Z (PO HOME) ---\n")
+        result.append("M211 S0 ; Vypnuti softwarovych endstopu\n\n")
 
     if bed_temp > 0:
         result.append(f"M140 S{bed_temp} ; Zacit nahrivat podlozku\n")
@@ -118,7 +108,7 @@ def generate_gcode(logic, params):
         loc_e_per_mm = ext_calc.calculate_e_per_mm(loc_ext, loc_unit, nozzle_diam, loc_spd)
         
         # Nový výpočet absolutního Z: - Výška bloku + Výška trysky - Schovaná část + Tloušťka skla + lokální offset
-        print_z = -block_h + loc_nozzle_h - hidden_h + slide_z + loc_z + z_shift
+        print_z = -block_h + loc_nozzle_h - hidden_h + slide_z + loc_z
 
         t = transforms[measurement_idx] if transforms and not is_prime and measurement_idx < len(transforms) else None
         S = t['scale'] if t else 1.0
@@ -153,9 +143,9 @@ def generate_gcode(logic, params):
             total_time_sec += (travel_dist / 3000) * 60
             last_abs_x, last_abs_y = start_abs_x, start_abs_y
 
-            result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop pro odpliv\n")
+            result.append(f"G1 Z{print_z + 2.0:.3f} F1000 ; Z-hop pro odpliv\n")
             result.append(f"G0 X{x1:.3f} Y{y1:.3f} F3000\n")
-            result.append(f"G0 Z{print_z:.3f} F1000\n")
+            result.append(f"G1 Z{print_z:.3f} F1000\n")
             result.append("M83 ; Relativní extruze\n")
             
             curr_y = y1
@@ -200,17 +190,17 @@ def generate_gcode(logic, params):
                         # loc_ext v tomto případě interpretujeme jako µl (nebo kroky) na jednu kapku
                         dot_unit = "kroky" if loc_unit == "kroky/mm" else "µl"
                         dot_e = ext_calc.calculate_dot_extrusion(loc_ext, dot_unit)
-                        result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop nad bod\n")
+                        result.append(f"G1 Z{print_z + 2.0:.3f} F1000 ; Z-hop nad bod\n")
                         result.append(f"G0 X{abs_x:.3f} Y{abs_y:.3f} F3000\n")
-                        result.append(f"G0 Z{print_z:.3f} F1000 ; Klesnuti k povrchu\n")
+                        result.append(f"G1 Z{print_z:.3f} F1000 ; Klesnuti k povrchu\n")
                         result.append(f"G1 E{dot_e:.5f} F300 ; Pomale davkovani kapky\n")
-                        result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop po davkovani\n")
+                        result.append(f"G1 Z{print_z + 2.0:.3f} F1000 ; Z-hop po davkovani\n")
                         total_time_sec += 2 # Odhad na jednu tečku
                         continue
 
-                    result.append(f"G0 Z{print_z + 2.0:.3f} F1000 ; Z-hop\n")
+                    result.append(f"G1 Z{print_z + 2.0:.3f} F1000 ; Z-hop\n")
                     result.append(f"G0 X{abs_x:.3f} Y{abs_y:.3f} F3000\n")
-                    result.append(f"G0 Z{print_z:.3f} F1000\n")
+                    result.append(f"G1 Z{print_z:.3f} F1000\n")
                     if is_retracted and retraction > 0:
                         result.append(f"G1 E{retraction:.5f} F{retract_speed} ; Deretrakce\n")
                         is_retracted = False
@@ -225,7 +215,7 @@ def generate_gcode(logic, params):
                     if retraction > 0:
                         result.append(f"G1 E{-retraction:.5f} F{retract_speed} ; Retrakce\n")
                         is_retracted = True
-                result.append(f"G0 Z{print_z + 2.0:.3f} F1000\n")
+                result.append(f"G1 Z{print_z + 2.0:.3f} F1000\n")
             else:
                 l_x, l_y = 0.0, 0.0
                 off_x = getattr(logic, 'gcode_offset_x', 0.0)
