@@ -53,27 +53,33 @@ def generate_gcode(logic, params):
     total_time_sec = 0.0
 
     result = []
-    # Vždy začneme zapnutím endstopů, aby bed leveling proběhl v pořádku
-    result.append("M211 S1 ; Zajisteni zapnutych endstopu pro start\n")
+    # Odstraněno M211 S1 ze začátku - způsobovalo chybu "Z level enforced", pokud byla tiskárna v mínusu z minula.
+    # Necháme proběhnout start_gcode (včetně G28/G80) v aktuálním stavu.
     result.append(settings["start_gcode"])
     if not result[-1].endswith("\n"): result.append("\n")
 
     # Kontrola, zda bude potřeba jet pod Z=0
     any_negative_z = False
     def check_z(loc_z_off, loc_nz_h, loc_nz_hid, loc_sl_z):
-        return (-block_h + loc_nz_h - loc_nz_hid + loc_sl_z + loc_z_off) < 0.01
+        # Rezerva 0.001mm pro zaokrouhlovací chyby
+        return (-block_h + loc_nz_h - loc_nz_hid + loc_sl_z + loc_z_off) < -0.001
     
     if check_z(z_offset, params.get('nozzle_height', 30.0), hidden_h, slide_z):
         any_negative_z = True
     else:
         for m_idx in range(pocet_vzorku):
             overrides = slide_overrides.get(str(m_idx), {})
-            if check_z(overrides.get('z_offset', z_offset), overrides.get('nozzle_height', params.get('nozzle_height', 30.0)), overrides.get('nozzle_hidden', hidden_h), slide_z):
+            loc_z = overrides.get('z_offset', z_offset)
+            loc_nz_h = overrides.get('nozzle_height', params.get('nozzle_height', 30.0))
+            loc_nz_hid = overrides.get('nozzle_hidden', hidden_h)
+            if check_z(loc_z, loc_nz_h, loc_nz_hid, slide_z):
                 any_negative_z = True; break
 
     if any_negative_z:
-        result.append("; --- POVOLENÍ ZÁPORNÉHO Z (PO HOME) ---\n")
-        result.append("M211 S0 ; Vypnuti softwarovych endstopu\n\n")
+        result.append("; --- POVOLENÍ ZÁPORNÉHO Z ---\n")
+        result.append("M211 S0 ; Vypnuti softwarovych endstopu pro tisk vzorku\n\n")
+    else:
+        result.append("M211 S1 ; Zajisteni zapnutych endstopu\n\n")
 
     if bed_temp > 0:
         result.append(f"M140 S{bed_temp} ; Zacit nahrivat podlozku\n")
@@ -263,5 +269,6 @@ def generate_gcode(logic, params):
 
     if bed_temp > 0: result.append("M140 S0 ; Vypnout vyhrivani podlozky\n")
     result.append(settings["end_gcode"])
+    result.append("\nM211 S1 ; Vratit endstopy do bezpecneho stavu\n")
     if not result[-1].endswith("\n"): result.append("\n")
     return "".join(result), total_dist, total_time_sec

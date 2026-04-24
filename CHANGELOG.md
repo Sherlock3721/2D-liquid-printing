@@ -2,6 +2,12 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.2.4] - 2026-04-24
+
+### 🛠 Opravy chyb
+*   **Konečná oprava "Z level enforced" při startu:** Odstraněn příkaz `M211 S1` z úplného začátku souboru. Tento příkaz způsoboval chybu, pokud tiskárna po předchozím tisku zůstala v záporných souřadnicích. Nyní `G28` (homing) proběhne v původním stavu, což chybu eliminuje.
+*   **Reset stavu po tisku:** Přidán příkaz `M211 S1` na konec G-kódu, aby byla tiskárna vždy zanechána v bezpečném stavu se zapnutými endstopy.
+
 ## [1.2.3] - 2026-04-24
 
 ### 🛠 Opravy chyb
