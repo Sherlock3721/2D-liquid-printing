@@ -2,6 +2,12 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.3.4] - 2026-04-24
+
+### 🚀 Novinky a vylepšení
+*   **Perzistence kamery:** Aplikace si nyní pamatuje nastavenou rotaci obrazu (uloženo v `settings.json`) a automaticky ji aplikuje při dalším spuštění.
+*   **Vylepšené UI ovládání:** Původní textová tlačítka v panelu ručního ovládání byla nahrazena moderními ikonami načtenými přímo ze souboru `svg/manual_movement.svg`.
+
 ## [1.3.3] - 2026-04-24
 
 ### 🛠 Opravy a zabezpečení

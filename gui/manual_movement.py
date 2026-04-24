@@ -1,7 +1,10 @@
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QGridLayout, 
                              QPushButton, QLineEdit, QLabel, QWidget)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QIcon, QPixmap, QPainter
+from PyQt6.QtSvg import QSvgRenderer
 from gui.settings import load_settings
+import os
 
 class ManualMovementWidget(QWidget):
     """Widget s ovládacími prvky pro manuální posun, určený k vložení do panelu."""
@@ -15,12 +18,40 @@ class ManualMovementWidget(QWidget):
         self.bed_x = settings.get("bed_max_x", 250.0)
         self.bed_y = settings.get("bed_max_y", 210.0)
         
+        self._load_svg_icons()
         self._setup_ui()
         self._apply_styles()
         
         if self.worker:
             self.worker.status_changed.connect(self._handle_status_change)
             self._handle_status_change("") # Počáteční nastavení stavu
+
+    def _load_svg_icons(self):
+        """Načte ikony ze souboru manual_movement.svg dle ID skupin."""
+        self.icons = {}
+        svg_path = os.path.join(os.getcwd(), "svg", "manual_movement.svg")
+        if not os.path.exists(svg_path):
+            print(f"Varování: Soubor {svg_path} nebyl nalezen.")
+            return
+
+        renderer = QSvgRenderer(svg_path)
+        icon_size = 64
+        
+        # Mapa Group ID v SVG -> Klíč v self.icons
+        mapping = {
+            "+X": "plus_x", "-X": "minus_x",
+            "+Y": "plus_y", "-Y": "minus_y",
+            "+Z": "plus_z", "-Z": "minus_z",
+            "XY": "home_xy", "Z": "home_z"
+        }
+        
+        for group_id, key in mapping.items():
+            pixmap = QPixmap(icon_size, icon_size)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(pixmap)
+            renderer.render(painter, group_id)
+            painter.end()
+            self.icons[key] = QIcon(pixmap)
 
     def _setup_ui(self):
         self.main_layout = QVBoxLayout(self)
@@ -90,10 +121,21 @@ class ManualMovementWidget(QWidget):
         
         xy_grid = QGridLayout()
         xy_grid.setSpacing(10)
-        self.btn_y_plus = QPushButton("Y+"); self.btn_y_minus = QPushButton("Y-")
-        self.btn_x_plus = QPushButton("X+"); self.btn_x_minus = QPushButton("X-")
-        self.btn_home_xy = QPushButton("🏠 XY")
+        self.btn_y_plus = QPushButton(); self.btn_y_minus = QPushButton()
+        self.btn_x_plus = QPushButton(); self.btn_x_minus = QPushButton()
+        self.btn_home_xy = QPushButton()
         
+        # Aplikace ikon
+        if "plus_x" in self.icons: self.btn_x_plus.setIcon(self.icons["plus_x"])
+        if "minus_x" in self.icons: self.btn_x_minus.setIcon(self.icons["minus_x"])
+        if "plus_y" in self.icons: self.btn_y_plus.setIcon(self.icons["plus_y"])
+        if "minus_y" in self.icons: self.btn_y_minus.setIcon(self.icons["minus_y"])
+        if "home_xy" in self.icons: self.btn_home_xy.setIcon(self.icons["home_xy"])
+        
+        for b in [self.btn_x_plus, self.btn_x_minus, self.btn_y_plus, self.btn_y_minus, self.btn_home_xy]:
+            b.setFixedSize(65, 45)
+            b.setIconSize(QSize(40, 40))
+
         xy_grid.addWidget(self.btn_y_plus, 0, 1)
         xy_grid.addWidget(self.btn_x_minus, 1, 0)
         xy_grid.addWidget(self.btn_home_xy, 1, 1)
@@ -108,9 +150,17 @@ class ManualMovementWidget(QWidget):
         z_label.setStyleSheet("color: #aaa; font-weight: bold; font-size: 10px;")
         z_container.addWidget(z_label)
         
-        self.btn_z_plus = QPushButton("Z+")
-        self.btn_z_home = QPushButton("🏠 Z")
-        self.btn_z_minus = QPushButton("Z-")
+        self.btn_z_plus = QPushButton()
+        self.btn_z_home = QPushButton()
+        self.btn_z_minus = QPushButton()
+        
+        if "plus_z" in self.icons: self.btn_z_plus.setIcon(self.icons["plus_z"])
+        if "minus_z" in self.icons: self.btn_z_minus.setIcon(self.icons["minus_z"])
+        if "home_z" in self.icons: self.btn_z_home.setIcon(self.icons["home_z"])
+        
+        for b in [self.btn_z_plus, self.btn_z_minus, self.btn_z_home]:
+            b.setFixedSize(80, 45)
+            b.setIconSize(QSize(40, 40))
         
         z_container.addWidget(self.btn_z_plus)
         z_container.addWidget(self.btn_z_home)
@@ -166,10 +216,6 @@ class ManualMovementWidget(QWidget):
             QPushButton:hover { background-color: #3d3d3d; }
             QPushButton:checked { background-color: #ff9800; color: #000; }
             QPushButton:disabled { background-color: #1a1a1a; color: #555; }
-            
-            QPushButton[text^="X"] { border-left: 3px solid #ff4444; }
-            QPushButton[text^="Y"] { border-left: 3px solid #44ff44; }
-            QPushButton[text^="Z"] { border-left: 3px solid #4444ff; }
             
             QLineEdit { background-color: #121212; border: 1px solid #333; border-radius: 4px; color: #fff; padding: 4px; }
             QLineEdit:focus { border: 1px solid #ff9800; }

@@ -8,13 +8,19 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayo
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import Qt, pyqtSlot
 from core.camera_handler import CameraHandler, OPENCV_AVAILABLE
+from gui.settings import load_settings, save_settings
 
 class CameraWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.settings = load_settings()
         self.handler = CameraHandler()
         self.handler.frame_ready.connect(self.update_frame)
-        self.current_rotation = 0
+        
+        # Načtení uložené rotace
+        self.current_rotation = self.settings.get("camera_rotation", 0)
+        self.handler.set_rotation(self.current_rotation)
+        
         self._setup_ui()
         
         # Automatická detekce a start
@@ -104,9 +110,14 @@ class CameraWidget(QWidget):
                 self._toggle_camera(True)
 
     def _rotate_camera(self):
-        """Cyklicky mění rotaci obrazu."""
+        """Cyklicky mění rotaci obrazu a ukládá do nastavení."""
         self.current_rotation = (self.current_rotation + 90) % 360
         self.handler.set_rotation(self.current_rotation)
+        
+        # Uložení do settings
+        self.settings = load_settings()
+        self.settings["camera_rotation"] = self.current_rotation
+        save_settings(self.settings)
 
     def _on_source_changed(self):
         if self.btn_toggle.isChecked():
