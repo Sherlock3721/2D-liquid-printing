@@ -2,6 +2,14 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.3.1] - 2026-04-24
+
+### 🛠 Opravy a vylepšení
+*   **Stabilizace modulu kamery:**
+    *   Aplikace již nespadne, pokud chybí knihovna `opencv-python` (nyní je závislost ošetřena).
+    *   Přidán **výběr zdroje kamery** (dropdown menu) pro systémy s více USB kamerami.
+    *   **Inteligentní skrývání:** Pokud není nalezena žádná kamera, náhled se automaticky schová, aby nezabíral místo v panelu.
+
 ## [1.3.0] - 2026-04-24
 
 ### 🚀 Novinky a vylepšení
