@@ -18,6 +18,7 @@ class LeftPanel(QWidget):
         self.settings = load_settings()
         self.sklo_dims = self.settings.get("sklo_dims", {})
         self.nozzle_defs = self.settings.get("nozzle_defs", {})
+        self.prints_completed = 0 # Počítadlo dokončených tisků
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
@@ -233,12 +234,20 @@ class LeftPanel(QWidget):
             self.btn_prime.setStyleSheet("background-color: #444; color: #888;")
 
     def _update_bed_leveling_style(self):
-        if self.btn_bed_leveling.isChecked():
-            self.btn_bed_leveling.setText("Bed Leveling AKTIVNÍ")
-            self.btn_bed_leveling.setStyleSheet("background-color: #198754; color: white;")
+        # Deaktivace bedlevelingu je možná až po prvním úspěšném tisku
+        if self.prints_completed == 0:
+            self.btn_bed_leveling.setChecked(True)
+            self.btn_bed_leveling.setEnabled(False)
+            self.btn_bed_leveling.setText("Bed Leveling (POVINNÝ)")
+            self.btn_bed_leveling.setStyleSheet("background-color: #198754; color: white; opacity: 0.7;")
         else:
-            self.btn_bed_leveling.setText("Bed Leveling VYPNUTÝ")
-            self.btn_bed_leveling.setStyleSheet("background-color: #444; color: #888;")
+            self.btn_bed_leveling.setEnabled(True)
+            if self.btn_bed_leveling.isChecked():
+                self.btn_bed_leveling.setText("Bed Leveling AKTIVNÍ")
+                self.btn_bed_leveling.setStyleSheet("background-color: #198754; color: white;")
+            else:
+                self.btn_bed_leveling.setText("Bed Leveling VYPNUTÝ")
+                self.btn_bed_leveling.setStyleSheet("background-color: #444; color: #888;")
 
     def _toggle_custom_glass(self):
         is_custom = self.cmb_glass.currentText() == "Vlastní"
@@ -276,6 +285,10 @@ class LeftPanel(QWidget):
 
     def update_status(self, msg):
         self.lbl_status.setText(f"Stav: {msg}")
+        if msg == "Tisk dokončen":
+            self.prints_completed += 1
+            self._update_bed_leveling_style()
+
         if msg == "Připojeno" or msg in ("Tisk dokončen", "Tisk zrušen"):
             self.lbl_status.setStyleSheet("color: #198754; font-weight: bold;"); self.set_ui_connected()
             self.lbl_stats.hide()

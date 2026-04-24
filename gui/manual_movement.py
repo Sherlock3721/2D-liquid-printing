@@ -189,21 +189,25 @@ class ManualMovementWidget(QWidget):
         if not self.inp_abs_z.hasFocus(): self.inp_abs_z.setText(f"{z:.2f}")
 
     def _handle_status_change(self, status):
-        """Deaktivuje ovládání během tisku."""
+        """Deaktivuje ovládání během tisku nebo při odpojení."""
         printing = False
+        connected = False
         if self.worker:
             printing = self.worker.is_printing
+            connected = self.worker.serial_conn is not None and self.worker.serial_conn.is_open
+        
+        can_control = connected and not printing
         
         # Seznam widgetů, které chceme vypnout
-        for btn in self.step_buttons.values(): btn.setEnabled(not printing)
-        self.btn_x_plus.setEnabled(not printing); self.btn_x_minus.setEnabled(not printing)
-        self.btn_y_plus.setEnabled(not printing); self.btn_y_minus.setEnabled(not printing)
-        self.btn_z_plus.setEnabled(not printing); self.btn_z_minus.setEnabled(not printing)
-        self.btn_home_xy.setEnabled(not printing); self.btn_z_home.setEnabled(not printing)
-        self.btn_go_abs.setEnabled(not printing); self.btn_send_gcode.setEnabled(not printing)
-        self.btn_leveling.setEnabled(not printing); self.btn_motors.setEnabled(not printing)
-        self.inp_abs_x.setEnabled(not printing); self.inp_abs_y.setEnabled(not printing)
-        self.inp_abs_z.setEnabled(not printing); self.inp_gcode.setEnabled(not printing)
+        for btn in self.step_buttons.values(): btn.setEnabled(can_control)
+        self.btn_x_plus.setEnabled(can_control); self.btn_x_minus.setEnabled(can_control)
+        self.btn_y_plus.setEnabled(can_control); self.btn_y_minus.setEnabled(can_control)
+        self.btn_z_plus.setEnabled(can_control); self.btn_z_minus.setEnabled(can_control)
+        self.btn_home_xy.setEnabled(can_control); self.btn_z_home.setEnabled(can_control)
+        self.btn_go_abs.setEnabled(can_control); self.btn_send_gcode.setEnabled(can_control)
+        self.btn_leveling.setEnabled(can_control); self.btn_motors.setEnabled(can_control)
+        self.inp_abs_x.setEnabled(can_control); self.inp_abs_y.setEnabled(can_control)
+        self.inp_abs_z.setEnabled(can_control); self.inp_gcode.setEnabled(can_control)
 
     def _update_step(self, val_str):
         self.current_step = float(val_str)

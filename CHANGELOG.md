@@ -2,6 +2,14 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.3.3] - 2026-04-24
+
+### 🛠 Opravy a zabezpečení
+*   **Omezení ručního ovládání:** Manuální posuv motorů je nyní automaticky zablokován, pokud není tiskárna připojena nebo pokud právě probíhá tisk. Tím se předchází kolizím a chybám v komunikaci.
+*   **Logika Bed Levelingu:** 
+    *   Deaktivace Bed Levelingu je nyní při spuštění aplikace zakázána. První tisk po startu musí vždy obsahovat plnou kalibraci pro zajištění bezpečnosti. Možnost vypnutí se zpřístupní až od druhého tisku.
+    *   Ruční tlačítka pro "Home" v ovládacím panelu nyní provádějí pouze základní homing os (`G28`), nikoliv plný Bed Leveling rituál.
+
 ## [1.3.2] - 2026-04-24
 
 ### 🚀 Novinky a vylepšení
