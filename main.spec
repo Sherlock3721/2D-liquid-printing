@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('settings_default.json', '.')],
+    datas=[('settings_default.json', '.'), ('svg', 'svg')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

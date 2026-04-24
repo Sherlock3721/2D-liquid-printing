@@ -209,6 +209,7 @@ class InteractiveGraphicsView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setBackgroundBrush(QBrush(QColor(40, 40, 40)))
         
         self.undo_stack = []
@@ -372,17 +373,18 @@ class InteractiveGraphicsView(QGraphicsView):
         if event.angleDelta().y() > 0:
             self.scale(zoom_in_factor, zoom_in_factor)
         else:
-            scene_rect = self.sceneRect()
             view_rect = self.viewport().rect()
-            if scene_rect.width() > 0:
-                min_scale_x = view_rect.width() / (scene_rect.width() + 50)
-                min_scale_y = view_rect.height() / (scene_rect.height() + 50)
-                min_scale = max(0.1, min(min_scale_x, min_scale_y))
+            # Povolíme odzoomování tak, aby byl vidět i prostor KOLEM podložky (margin 50mm na každou stranu)
+            min_scale_x = view_rect.width() / (self.bed_w + 100)
+            min_scale_y = view_rect.height() / (self.bed_h + 100)
+            min_scale = min(min_scale_x, min_scale_y)
+            
+            min_scale = max(0.01, min_scale)
 
-                if current_scale * zoom_out_factor > min_scale:
-                    self.scale(zoom_out_factor, zoom_out_factor)
-                else:
-                    self.setTransform(QTransform.fromScale(min_scale, min_scale))
+            if current_scale * zoom_out_factor > min_scale:
+                self.scale(zoom_out_factor, zoom_out_factor)
+            else:
+                self.setTransform(QTransform.fromScale(min_scale, min_scale))
 
     def drawBackground(self, painter, rect):
         super().drawBackground(painter, rect)
@@ -533,6 +535,9 @@ class InteractiveGraphicsView(QGraphicsView):
                 except RuntimeError: pass
                                    
         self.scene.clear()
+        # Nastavení plochy scény s okrajem 50mm kolem tiskové plochy
+        margin = 50.0
+        self.scene.setSceneRect(-margin, -margin, bed_max_x + 2*margin, bed_max_y + 2*margin)
         self.slides_info = []
         self.gcode_items = []
         self.bed_w = bed_max_x
@@ -626,10 +631,10 @@ class InteractiveGraphicsView(QGraphicsView):
                     movable_group.setScale(saved_transforms[i]['scale'])
                     movable_group.setPos(saved_transforms[i]['pos'])
                 elif loaded_transforms and i < len(loaded_transforms):
-                    # Pro načtená metadata přičteme posuv k základní pozici
+                    # Pro načtená metadata použijeme uloženou absolutní pozici
                     lt = loaded_transforms[i]
                     movable_group.setScale(lt.get('scale', 1.0))
-                    movable_group.setPos(gx + lt.get('gui_dx', 0), sy + lt.get('gui_dy', 0))
+                    movable_group.setPos(lt.get('gui_dx', gx), lt.get('gui_dy', sy))
                 else:
                     movable_group.setPos(gx, sy)
                 
@@ -641,8 +646,9 @@ class InteractiveGraphicsView(QGraphicsView):
             for item in self.gcode_items: item.siblings = self.gcode_items
 
         if first_load or bed_changed:
-            self.fitInView(QRectF(0, 0, bed_max_x, bed_max_y), Qt.AspectRatioMode.KeepAspectRatio)
-            self.centerOn(bed_max_x / 2.0, bed_max_y / 2.0)
+            from PyQt6.QtCore import QTimer
+            # Použijeme krátký delay, aby měl viewport už finální rozměry
+            QTimer.singleShot(50, lambda: self.fitInView(QRectF(0, 0, bed_max_x, bed_max_y), Qt.AspectRatioMode.KeepAspectRatio))
         
     def update_nozzle_position(self, x, y, z, is_extruding):
         if not hasattr(self, 'bed_h'): return

@@ -88,7 +88,8 @@ class LeftPanel(QWidget):
         self.form_layout.addRow("Absolutní Z tiskárny:", self.lbl_total_z)
 
         self.inp_z_offset = QDoubleSpinBox()
-        self.inp_z_offset.setRange(0.0, 5.0); self.inp_z_offset.setSingleStep(0.05); self.inp_z_offset.setValue(0.2)
+        self.inp_z_offset.setRange(0.0, 5.0); self.inp_z_offset.setSingleStep(0.05)
+        self.inp_z_offset.setValue(self.settings.get("default_z_offset", 0.2))
         self.form_layout.addRow("Tloušťka vrstvy [mm]:", self.inp_z_offset)
         
         # --- EXTRUZE S VÝBĚREM JEDNOTEK ---
@@ -124,8 +125,10 @@ class LeftPanel(QWidget):
         layout_vlastni_tryska.setContentsMargins(0, 0, 0, 0)
         self.inp_nozzle_h = QDoubleSpinBox(); self.inp_nozzle_h.setRange(0, 100); self.inp_nozzle_h.setValue(30.0)
         self.inp_nozzle_d = QDoubleSpinBox(); self.inp_nozzle_d.setRange(0.01, 10.0); self.inp_nozzle_d.setValue(0.4)
-        layout_vlastni_tryska.addWidget(QLabel("Výška:")); layout_vlastni_tryska.addWidget(self.inp_nozzle_h)
-        layout_vlastni_tryska.addWidget(QLabel("Průměr:")); layout_vlastni_tryska.addWidget(self.inp_nozzle_d)
+        self.inp_nozzle_hidden = QDoubleSpinBox(); self.inp_nozzle_hidden.setRange(0, 100); self.inp_nozzle_hidden.setValue(4.0)
+        layout_vlastni_tryska.addWidget(QLabel("V:")); layout_vlastni_tryska.addWidget(self.inp_nozzle_h)
+        layout_vlastni_tryska.addWidget(QLabel("D:")); layout_vlastni_tryska.addWidget(self.inp_nozzle_d)
+        layout_vlastni_tryska.addWidget(QLabel("S:")); layout_vlastni_tryska.addWidget(self.inp_nozzle_hidden)
         self.form_layout.addRow(self.widget_vlastni_tryska)
         self.widget_vlastni_tryska.setVisible(False)
 
@@ -336,8 +339,13 @@ class LeftPanel(QWidget):
             except ValueError: slide_w, slide_h, slide_z = 25.0, 75.0, 1.0
         else: slide_w, slide_h, slide_z = self.sklo_dims.get(glass_type, [25.0, 75.0, 1.0])
         nozzle_type = self.cmb_nozzle.currentText()
-        if nozzle_type == "Vlastní": nozzle_h = self.inp_nozzle_h.value(); nozzle_d = self.inp_nozzle_d.value()
-        else: nozzle_h, nozzle_d = self.nozzle_defs.get(nozzle_type, [30.0, 0.4])
+        if nozzle_type == "Vlastní": 
+            nozzle_h = self.inp_nozzle_h.value(); nozzle_d = self.inp_nozzle_d.value(); nozzle_hidden = self.inp_nozzle_hidden.value()
+        else: 
+            params = self.nozzle_defs.get(nozzle_type, [30.0, 0.4, 4.0])
+            nozzle_h = params[0]
+            nozzle_d = params[1]
+            nozzle_hidden = params[2] if len(params) > 2 else 4.0
         # Převod extruze na základní jednotku µl/mm pro generátor (pokud to nejsou kroky)
         current_unit = self.cmb_ext_units.currentText()
         if current_unit == "kroky/mm":
@@ -350,7 +358,7 @@ class LeftPanel(QWidget):
             'holder_type': "Multiplex (více sklíček)", 'glass_type': glass_type, 'slide_w': slide_w, 'slide_h': slide_h, 'slide_z': slide_z,
             'sample_count': self.inp_count.value(), 'z_offset': self.inp_z_offset.value(), 
             'extrusion_rate': ext_rate_internal, 'extrusion_unit': current_unit,
-            'nozzle_type': nozzle_type, 'nozzle_diam': nozzle_d, 'nozzle_height': nozzle_h,
+            'nozzle_type': nozzle_type, 'nozzle_diam': nozzle_d, 'nozzle_height': nozzle_h, 'nozzle_hidden': nozzle_hidden,
             'print_speed': self.settings.get("print_speed", 1500), 'retraction': self.settings.get("retraction", 1.0),
             'filament_diameter': self.settings.get("filament_diameter", 9.5),
             'flow_multiplier': self.settings.get("flow_multiplier", 1.0),
@@ -400,12 +408,13 @@ class LeftPanel(QWidget):
         params = self.get_all_params()
         
         block_h = self.settings.get("block_height", 34.0)
-        hidden_h = self.settings.get("hidden_nozzle_part", 4.0)
         nozzle_h = params.get('nozzle_height', 30.0)
+        nozzle_hidden = params.get('nozzle_hidden', 4.0)
+        slide_z = params.get('slide_z', 1.0)
         layer_z = params.get('z_offset', 0.2)
         
-        # Nový výpočet dle požadavku: Výška bloku + výška trysky - schovaná část + tloušťka vrstvy
-        total_z = block_h + nozzle_h - hidden_h + layer_z
+        # Nový výpočet dle požadavku: - Výška bloku + výška trysky - schovaná část + tloušťka skla + tloušťka vrstvy
+        total_z = -block_h + nozzle_h - nozzle_hidden + slide_z + layer_z
         self.lbl_total_z.setText(f"{total_z:.2f} mm")
 
     def refresh_settings(self):
@@ -413,7 +422,10 @@ class LeftPanel(QWidget):
         self.settings = load_settings()
         self.sklo_dims = self.settings.get("sklo_dims", {})
         self.nozzle_defs = self.settings.get("nozzle_defs", {})
-        
+
+        # Aktualizace výchozího Z-offsetu (tloušťky vrstvy)
+        self.inp_z_offset.setValue(self.settings.get("default_z_offset", 0.2))
+
         # Aktualizace ComboBoxů při zachování vybrané hodnoty pokud existuje
         curr_glass = self.cmb_glass.currentText()
         self.cmb_glass.blockSignals(True)

@@ -33,6 +33,7 @@ def generate_gcode(logic, params):
     
     slide_w = params.get('slide_w', 25.0)
     slide_h = params.get('slide_h', 75.0)
+    slide_z = params.get('slide_z', 1.0)
     
     spacing = settings["multi_spacing"] 
     transforms = params.get('transforms', [])
@@ -45,7 +46,8 @@ def generate_gcode(logic, params):
     retract_speed = 3000
 
     block_h = settings.get("block_height", 34.0)
-    hidden_h = settings.get("hidden_nozzle_part", 4.0)
+    # hidden_h is now ideally per-nozzle, fallback to global settings for compatibility
+    hidden_h = params.get('nozzle_hidden', settings.get("hidden_nozzle_part", 4.0))
 
     total_dist = 0.0
     total_time_sec = 0.0
@@ -86,8 +88,8 @@ def generate_gcode(logic, params):
         loc_unit = current_overrides.get('extrusion_unit', params.get('extrusion_unit', 'µl/mm'))
         loc_e_per_mm = ext_calc.calculate_e_per_mm(loc_ext, loc_unit, nozzle_diam, loc_spd)
         
-        # Nový výpočet absolutního Z: Výška bloku + Výška trysky - Schovaná část + lokální offset
-        print_z = block_h + loc_nozzle_h - hidden_h + loc_z
+        # Nový výpočet absolutního Z: - Výška bloku + Výška trysky - Schovaná část + Tloušťka skla + lokální offset
+        print_z = -block_h + loc_nozzle_h - hidden_h + slide_z + loc_z
 
         t = transforms[measurement_idx] if transforms and not is_prime and measurement_idx < len(transforms) else None
         S = t['scale'] if t else 1.0
@@ -98,12 +100,17 @@ def generate_gcode(logic, params):
         bed_y = settings["bed_max_y"]
 
         def transform_pt(x_orig, y_orig):
-            phys_x_base = posun_x + x_orig
-            phys_y_base = posun_y + y_orig
-            gui_x_base = phys_x_base
-            gui_y_base = bed_y - phys_y_base
-            gui_x_new = (gui_x_base - cx_t) * S + cx_t + gui_dx
-            gui_y_new = (gui_y_base - cy_t) * S + cy_t + gui_dy
+            # Bod relativně k počátku skupiny v GUI
+            # V GUI kreslíme: x_orig, sh - y_orig (Y je invertované)
+            local_gui_x = x_orig
+            local_gui_y = sh - y_orig
+            
+            # Aplikace měřítka kolem transformOriginPoint (cx_t, cy_t)
+            # ParentPos = item.pos() + Origin + S * (Local - Origin)
+            gui_x_new = gui_dx + cx_t + (local_gui_x - cx_t) * S
+            gui_y_new = gui_dy + cy_t + (local_gui_y - cy_t) * S
+            
+            # Převod zpět na G-code Y (invertovat přes bed_max_y)
             return gui_x_new, bed_y - gui_y_new
 
         if is_prime:

@@ -24,9 +24,9 @@
   "default_density": 0.05,
   "show_slide_grid": true,
   "nozzle_defs": {
-    "Červená": [30.9, 0.3],
-    "Modrá": [31.75, 0.41],
-    "Vlastní": [0.0, 0.4]
+    "Červená": [30.9, 0.3, 4.0],
+    "Modrá": [31.75, 0.41, 4.0],
+    "Vlastní": [0.0, 0.4, 4.0]
   },
   "filament_diameter": 9.5,
   "flow_multiplier": 1.0,

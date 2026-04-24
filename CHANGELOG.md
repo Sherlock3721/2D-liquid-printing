@@ -2,6 +2,23 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.2.0] - 2026-04-24
+
+### 🚀 Novinky a vylepšení
+*   **Interaktivní vizuální schéma:** Do nastavení bylo přidáno interaktivní SVG schéma pro intuitivní konfiguraci trysek, komory a tloušťky substrátů.
+*   **Individuální parametry trysek:** Každá tryska má nyní vlastní parametr "Skrytá délka", což nahrazuje dřívější globální nastavení a umožňuje přesnější kalibraci různých typů trysek.
+*   **Tloušťka držáku / masky:** Přidán nový parametr v záložce Podložka, který je synchronizován s výškou vrstvy a vizualizován v interaktivním schématu.
+*   **Vylepšený náhled (Graphics View):**
+    *   Při spuštění se náhled automaticky vycentruje na tiskovou plochu.
+    *   Umožněno odzoomování až 50 mm mimo tiskovou plochu pro lepší orientaci.
+    *   Opraveno chování zoomu a zarovnání scény k levému hornímu rohu.
+
+### 🛠 Opravy chyb
+*   **Oprava G-code generátoru:** Vyřešena kritická chyba, kdy byl vygenerovaný G-code posunutý oproti vizuálnímu náhledu. Nyní se transformace (posun, měřítko) shodují 1:1.
+*   **Stabilizace nastavení:** Opraveny pády aplikace (`AttributeError`, `NameError`) při otevírání a ukládání pokročilého nastavení.
+*   **Oprava ukládání:** Zajištěna správná persistence parametrů tloušťky vrstvy a jejich okamžité promítnutí do hlavního panelu.
+*   **SVG Rendering Hotfix:** Vyčištěny vnitřní struktury SVG schématu pro odstranění chyb Qt rendereru ("Could not add child element").
+
 ## [1.0.0] - 2026-04-16 (Produkční verze)
 
 ### 🚀 Novinky a vylepšení
