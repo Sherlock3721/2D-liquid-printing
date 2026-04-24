@@ -2,6 +2,12 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.3.0] - 2026-04-24
+
+### 🚀 Novinky a vylepšení
+*   **Integrace USB kamery:** Do pravého panelu (nad manuální ovládání) byl přidán modul pro zobrazení živého náhledu z USB kamery. Tento modul slouží jako základ pro budoucí systém automatické detekce selhání a ochrany trysky.
+*   **Závislosti:** Přidána podpora pro knihovnu OpenCV (`opencv-python`) pro zpracování obrazu.
+
 ## [1.2.7] - 2026-04-24
 
 ### 🛠 Opravy a doladění

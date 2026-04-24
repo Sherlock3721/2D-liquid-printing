@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QScrollArea,
                              QPushButton, QComboBox, QHBoxLayout, QLabel, QLineEdit)
 from PyQt6.QtCore import Qt, pyqtSignal
 from gui.manual_movement import ManualMovementWidget
+from gui.camera_widget import CameraWidget
 
 class CollapsibleBox(QWidget):
     def __init__(self, title="", parent=None):
@@ -41,6 +42,10 @@ class RightPanel(QWidget):
         # Získáme printer_worker (předpokládáme, že je dostupný v parent.left_panel.worker)
         printer_worker = parent.left_panel.worker if parent and hasattr(parent, 'left_panel') else None
         
+        # NOVÉ: Kamera nad ručním ovládáním
+        self.camera_widget = CameraWidget(self)
+        main_layout.addWidget(self.camera_widget)
+
         self.manual_box = CollapsibleBox("RUČNÍ OVLÁDÁNÍ POSUVU", self)
         self.manual_widget = ManualMovementWidget(printer_worker, self.manual_box.content_area)
         manual_layout = QVBoxLayout(self.manual_box.content_area)

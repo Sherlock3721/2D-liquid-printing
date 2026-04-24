@@ -9,3 +9,5 @@ packaging==26.0
 fonttools==4.62.1
 pyparsing==3.3.2
 typing-extensions==4.15.0
+opencv-python==4.11.0.86
+
