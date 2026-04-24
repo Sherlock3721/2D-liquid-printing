@@ -2,12 +2,12 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
-## [1.2.1] - 2026-04-24
+## [1.2.2] - 2026-04-24
 
 ### 🛠 Opravy chyb
-*   **Softwarové endstopy (Z < 0):** G-code generátor nyní automaticky detekuje, zda tisková hlava musí jet pod úroveň Z=0 (např. při tloušťce skla + offsetu, který je v absolutních souřadnicích tiskárny záporný). V takovém případě automaticky vloží příkaz `M211 S0`, aby tiskárna pohyb nezablokovala.
+*   **Robustní řešení pro Z < 0 (G92 Shift):** Nahrazen příkaz `M211 S0` (který některé tiskárny ignorují) spolehlivější metodou posunu souřadnic. Pokud výpočet Z vyžaduje pohyb pod úroveň nuly, celá osa Z se v G-kódu virtuálně posune nahoru pomocí `G92`. To zaručuje, že tiskárna nikdy nenarazí na softwarový endstop, i když fyzicky tiskne pod úrovní původního `Z=0`.
 
-## [1.2.0] - 2026-04-24
+## [1.2.1] - 2026-04-24
 
 ### 🚀 Novinky a vylepšení
 *   **Interaktivní vizuální schéma:** Do nastavení bylo přidáno interaktivní SVG schéma pro intuitivní konfiguraci trysek, komory a tloušťky substrátů.
