@@ -2,6 +2,11 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.2.1] - 2026-04-24
+
+### 🛠 Opravy chyb
+*   **Softwarové endstopy (Z < 0):** G-code generátor nyní automaticky detekuje, zda tisková hlava musí jet pod úroveň Z=0 (např. při tloušťce skla + offsetu, který je v absolutních souřadnicích tiskárny záporný). V takovém případě automaticky vloží příkaz `M211 S0`, aby tiskárna pohyb nezablokovala.
+
 ## [1.2.0] - 2026-04-24
 
 ### 🚀 Novinky a vylepšení

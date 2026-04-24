@@ -56,6 +56,31 @@ def generate_gcode(logic, params):
     result.append(settings["start_gcode"])
     if not result[-1].endswith("\n"): result.append("\n")
 
+    # Kontrola, zda bude potřeba jet pod Z=0 (softwarové endstopy)
+    any_negative_z = False
+    
+    def check_z(loc_z_off, loc_nz_h, loc_nz_hid, loc_sl_z):
+        return (-block_h + loc_nz_h - loc_nz_hid + loc_sl_z + loc_z_off) < 0.0
+
+    # Prověříme základní parametry (a odpliv)
+    if check_z(z_offset, params.get('nozzle_height', 30.0), hidden_h, slide_z):
+        any_negative_z = True
+    
+    # Prověříme všechna sklíčka a jejich případné override
+    if not any_negative_z:
+        for m_idx in range(pocet_vzorku):
+            overrides = slide_overrides.get(str(m_idx), {})
+            loc_z = overrides.get('z_offset', z_offset)
+            loc_nozzle_h = overrides.get('nozzle_height', params.get('nozzle_height', 30.0))
+            loc_nozzle_hidden = overrides.get('nozzle_hidden', hidden_h)
+            if check_z(loc_z, loc_nozzle_h, loc_nozzle_hidden, slide_z):
+                any_negative_z = True
+                break
+
+    if any_negative_z:
+        result.append("; --- POVOLENÍ NEGATIVNÍHO Z ---\n")
+        result.append("M211 S0 ; Vypnuti softwarovych endstopu (Z jde do minusu)\n\n")
+
     if bed_temp > 0:
         result.append(f"M140 S{bed_temp} ; Zacit nahrivat podlozku\n")
         result.append(f"M190 S{bed_temp} ; Pockat na nahrati podlozky na {bed_temp} C\n")
