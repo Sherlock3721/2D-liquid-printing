@@ -2,6 +2,11 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.2.7] - 2026-04-24
+
+### 🛠 Opravy a doladění
+*   **Upřesnění Bed Leveling rituálu:** Při vypnutém Bed Levelingu se nyní přeskakuje pouze samotná kalibrace sítě (`G80`). Ruční rituál PINDA (výzvy k zasunutí/vysunutí sondy) a základní zahomování (`G28`) zůstávají zachovány, protože jsou nezbytné pro bezpečnou orientaci tiskárny.
+
 ## [1.2.6] - 2026-04-24
 
 ### 🚀 Novinky a vylepšení

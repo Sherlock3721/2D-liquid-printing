@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget,
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
-APP_VERSION = "1.2.6"
+APP_VERSION = "1.2.7"
 APP_NAME = "Droplet Printing Interface (DPI)"
 APP_ID = f"cz.vut.droplet_printer.{APP_VERSION}" # Jedinečné ID aplikace pro Windows Taskbar
 
@@ -444,13 +444,9 @@ class GCodeApp(QMainWindow):
             # FILTRACE BED LEVELINGU (pouze pro přímý tisk)
             if not params.get('bed_leveling', True):
                 import re
-                # Odstraníme blok od inicializace až po retract PINDA
-                # Týká se to sekce, kde je M1 Push down a M1 Retract
-                start_marker = "; --- INICIALIZACE TISKÁRNY PRO KAPALINY ---"
-                end_marker = "M1 Retract the PINDA\nG0 Y10 F5000"
-                
-                pattern = re.escape(start_marker) + r".*?" + re.escape(end_marker)
-                gcode_text = re.sub(pattern, "; --- BED LEVELING SKIPNUT (DLE NASTAVENÍ) ---\nG90 ; absolute\nM83 ; relative\nG28 ; základní home bez PINDA rituálu", gcode_text, flags=re.DOTALL)
+                # Odstraníme pouze příkaz G80 (Mesh Bed Leveling), pokud existuje.
+                # Ponecháme M1 (zprávy pro PINDA) i G28 (Homing).
+                gcode_text = re.sub(r'^G80\b.*?\n', '; --- G80 (BED LEVELING) SKIPNUT ---\n', gcode_text, flags=re.MULTILINE | re.IGNORECASE)
 
             with open(temp_file, 'w', encoding='utf-8') as f:
                 f.write(gcode_text)
