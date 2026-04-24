@@ -260,7 +260,20 @@ class SettingsDialog(QDialog):
         self.inp_cal_factor.setValue(self.settings.get("calibration_factor", default_cal))
         
         cal_form.addRow("Kalibrační faktor [E-jednotka / µl]:", self.inp_cal_factor)
+        
         lay_cal.addLayout(cal_form)
+
+        # NOVÉ: Absolutní Z tiskárny
+        lay_cal.addWidget(QLabel("<br><b>Výpočet výšky (Z):</b>"))
+        self.lbl_total_z_settings = QLabel("0.00 mm")
+        self.lbl_total_z_settings.setStyleSheet("color: #17a2b8; font-weight: bold; font-size: 14px;")
+        z_info_layout = QFormLayout()
+        z_info_layout.addRow("Absolutní Z tiskárny:", self.lbl_total_z_settings)
+        lay_cal.addLayout(z_info_layout)
+        
+        # Propojení změn pro okamžitou aktualizaci Z v nastavení
+        self.inp_block_height.valueChanged.connect(lambda: self._update_total_z_display())
+        self.inp_holder_z.valueChanged.connect(lambda: self._update_total_z_display())
         
         # Informační text
         info_label = QLabel(
@@ -291,6 +304,7 @@ class SettingsDialog(QDialog):
 
         # Inicializace schématu podle vybraných profilů (výchozí první)
         self._sync_schema_to_profile()
+        self._update_total_z_display()
 
         # --- Tlačítka ---
         btn_layout = QHBoxLayout()
@@ -299,6 +313,25 @@ class SettingsDialog(QDialog):
         btn_cancel = QPushButton("Zrušit"); btn_cancel.clicked.connect(self.reject)
         btn_layout.addWidget(btn_restore); btn_layout.addStretch(); btn_layout.addWidget(btn_cancel); btn_layout.addWidget(btn_save)
         layout.addLayout(btn_layout)
+
+    def _update_total_z_display(self):
+        """Aktualizuje výpočet absolutního Z přímo v okně nastavení."""
+        block_h = self.inp_block_height.value()
+        holder_z = self.inp_holder_z.value()
+        
+        # Pro náhled v nastavení použijeme první trysku a první sklo jako referenci
+        nozzle_h = 30.0
+        nozzle_hidden = 4.0
+        if self.nozzle_rows:
+            nozzle_h = self.nozzle_rows[0]['h'].value()
+            nozzle_hidden = self.nozzle_rows[0]['s'].value()
+        
+        slide_z = 1.0
+        if self.slide_rows:
+            slide_z = self.slide_rows[0]['z'].value()
+            
+        total_z = -block_h + nozzle_h - nozzle_hidden + slide_z + holder_z
+        self.lbl_total_z_settings.setText(f"{total_z:.2f} mm (pro první profil)")
 
     def _sync_schema_to_profile(self):
         """Aktualizuje interaktivní schéma (zobrazuje první dostupné profily jako reprezentativní)."""

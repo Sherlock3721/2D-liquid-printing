@@ -75,6 +75,13 @@ class LeftPanel(QWidget):
         self.inp_bed_temp.valueChanged.connect(self._handle_bed_temp_change)
         self.form_layout.addRow("Výhřev podložky:", self.inp_bed_temp)
 
+        # --- BED LEVELING ---
+        self.btn_bed_leveling = QPushButton("Bed Leveling AKTIVNÍ")
+        self.btn_bed_leveling.setCheckable(True); self.btn_bed_leveling.setChecked(True)
+        self.btn_bed_leveling.clicked.connect(self._update_bed_leveling_style)
+        self._update_bed_leveling_style() # Aplikovat výchozí styl
+        self.form_layout.addRow("Příprava podložky:", self.btn_bed_leveling)
+
         # --- ODPLIV (PRIMING) ---
         self.btn_prime = QPushButton("Odpliv AKTIVNÍ")
         self.btn_prime.setCheckable(True); self.btn_prime.setChecked(True)
@@ -84,8 +91,6 @@ class LeftPanel(QWidget):
 
         # --- Parametry tisku ---
         self.form_layout.addRow(QLabel("<b>--- Tiskové parametry ---</b>"))
-        self.lbl_total_z = QLabel("0.00 mm"); self.lbl_total_z.setStyleSheet("color: #17a2b8; font-weight: bold;")
-        self.form_layout.addRow("Absolutní Z tiskárny:", self.lbl_total_z)
 
         self.inp_z_offset = QDoubleSpinBox()
         self.inp_z_offset.setRange(0.0, 5.0); self.inp_z_offset.setSingleStep(0.05)
@@ -195,7 +200,8 @@ class LeftPanel(QWidget):
         
         inputs = [self.cmb_glass, self.cmb_nozzle, self.inp_count, self.inp_bed_temp, self.inp_z_offset, 
                   self.inp_extrusion, self.inp_nozzle_h, self.inp_nozzle_d, self.cmb_infill_style, 
-                  self.inp_infill_val, self.cmb_infill_type, self.inp_infill_angle, self.btn_prime]
+                  self.inp_infill_val, self.cmb_infill_type, self.inp_infill_angle, self.btn_prime,
+                  self.btn_bed_leveling]
         for widget in inputs:
             if isinstance(widget, QComboBox): widget.currentIndexChanged.connect(self.values_changed.emit)
             elif isinstance(widget, (QSpinBox, QDoubleSpinBox)): widget.valueChanged.connect(self.values_changed.emit)
@@ -225,6 +231,14 @@ class LeftPanel(QWidget):
         else:
             self.btn_prime.setText("Odpliv VYPNUTÝ")
             self.btn_prime.setStyleSheet("background-color: #444; color: #888;")
+
+    def _update_bed_leveling_style(self):
+        if self.btn_bed_leveling.isChecked():
+            self.btn_bed_leveling.setText("Bed Leveling AKTIVNÍ")
+            self.btn_bed_leveling.setStyleSheet("background-color: #198754; color: white;")
+        else:
+            self.btn_bed_leveling.setText("Bed Leveling VYPNUTÝ")
+            self.btn_bed_leveling.setStyleSheet("background-color: #444; color: #888;")
 
     def _toggle_custom_glass(self):
         is_custom = self.cmb_glass.currentText() == "Vlastní"
@@ -364,7 +378,8 @@ class LeftPanel(QWidget):
             'flow_multiplier': self.settings.get("flow_multiplier", 1.0),
             'bed_temp': self.inp_bed_temp.value(), 'infill_style': self.cmb_infill_style.currentText(),
             'infill_val': self.inp_infill_val.value(), 'infill_type': self.cmb_infill_type.currentText(),
-            'infill_angle': self.inp_infill_angle.value(), 'prime_active': self.btn_prime.isChecked()
+            'infill_angle': self.inp_infill_angle.value(), 'prime_active': self.btn_prime.isChecked(),
+            'bed_leveling': self.btn_bed_leveling.isChecked()
         }
 
     def get_vector_params(self):
@@ -415,7 +430,6 @@ class LeftPanel(QWidget):
         
         # Nový výpočet dle požadavku: - Výška bloku + výška trysky - schovaná část + tloušťka skla + tloušťka vrstvy
         total_z = -block_h + nozzle_h - nozzle_hidden + slide_z + layer_z
-        self.lbl_total_z.setText(f"{total_z:.2f} mm")
 
     def refresh_settings(self):
         """Znovu načte seznamy skel a trysek z nastavení."""

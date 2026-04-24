@@ -2,6 +2,14 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.2.6] - 2026-04-24
+
+### 🚀 Novinky a vylepšení
+*   **Přepínač Bed Leveling:** Do levého panelu (sekce Podložka) přidáno tlačítko pro zapnutí/vypnutí Bed Levelingu.
+    *   Pokud je vypnutý, tiskárna při přímém tisku z aplikace přeskočí PINDA kalibrační rituál (rychlejší start).
+    *   V exportovaném G-code souboru zůstává kalibrace vždy aktivní pro zajištění nezávislosti souboru.
+*   **Reorganizace UI:** Parametr "Absolutní Z tiskárny" byl odstraněn z hlavního panelu pro lepší přehlednost a přesunut do **Nastavení -> záložka Převody**, kde se dynamicky přepočítává pro vybraný profil.
+
 ## [1.2.5] - 2026-04-24
 
 ### 🚀 Novinky a vylepšení
