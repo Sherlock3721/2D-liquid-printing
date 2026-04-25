@@ -25,6 +25,9 @@ Specializovaný software pro precizní 2D dávkování a tisk kapalin v laborato
     *   Export G-code s vloženými JSON metadaty (umožňuje zpětné načtení celého projektu).
     *   Automatické generování **CSV protokolů** z každého tisku pro laboratorní deníky.
 
+## 🔮 Budoucí vývoj
+Plány pro budoucí vylepšení (včetně plánovaného přepisu do Rustu) naleznete v souboru [FUTURE_DEV.md](FUTURE_DEV.md).
+
 ## 🛠 Instalace (Vývoj)
 
 1.  **Klonování repositáře:**

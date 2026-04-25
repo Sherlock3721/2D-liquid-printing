@@ -94,7 +94,17 @@ class RightPanel(QWidget):
                 inp_name = QLineEdit(); inp_name.setPlaceholderText(f"Sklíčko {i + 1}")
                 inp_name.textChanged.connect(lambda text, b=box, idx=i: b.toggle_button.setText(text if text.strip() else f"Sklíčko {idx + 1}"))
                 inp_note = QLineEdit(); inp_note.setPlaceholderText("Poznámka...")
-                inp_z = QDoubleSpinBox(); inp_z.setRange(0.0, 5.0); inp_z.setSingleStep(0.05)
+                
+                # --- TLOUŠŤKA VRSTVY S VÝBĚREM JEDNOTEK ---
+                from gui.settings import load_settings
+                settings = load_settings()
+                z_step = settings.get("z_step", 0.001)
+
+                widget_z = QWidget(); layout_z = QHBoxLayout(widget_z); layout_z.setContentsMargins(0, 0, 0, 0)
+                inp_z = QDoubleSpinBox()
+                inp_z.setRange(0.0, 5.0); inp_z.setSingleStep(z_step); inp_z.setDecimals(3)
+                cmb_z_units = QComboBox(); cmb_z_units.addItems(["mm", "µm"])
+                layout_z.addWidget(inp_z); layout_z.addWidget(cmb_z_units)
                 
                 # --- EXTRUZE S VÝBĚREM JEDNOTEK ---
                 widget_ext = QWidget(); layout_ext = QHBoxLayout(widget_ext); layout_ext.setContentsMargins(0, 0, 0, 0)
@@ -114,6 +124,7 @@ class RightPanel(QWidget):
                 
                 # Napojení signálů
                 inp_z.valueChanged.connect(lambda val, idx=i: self.mark_modified(idx, 'z_offset'))
+                cmb_z_units.currentTextChanged.connect(lambda unit, idx=i: self._handle_z_unit_change_local(idx, unit))
                 inp_ext.valueChanged.connect(lambda val, idx=i: self.mark_modified(idx, 'extrusion_rate'))
                 cmb_ext_units.currentTextChanged.connect(lambda unit, idx=i: self._handle_ext_unit_change_local(idx, unit))
                 inp_speed.valueChanged.connect(lambda val, idx=i: self.mark_modified(idx, 'print_speed'))
@@ -121,12 +132,14 @@ class RightPanel(QWidget):
                 cmb_infill_type.currentIndexChanged.connect(lambda val, idx=i: self.mark_modified(idx, 'infill_type'))
                 
                 form.addRow(btn_reset)
-                form.addRow("Název:", inp_name); form.addRow("Poznámka:", inp_note); form.addRow("Z-offset [mm]:", inp_z)
+                form.addRow("Název:", inp_name); form.addRow("Poznámka:", inp_note); form.addRow("Tloušťka vrstvy:", widget_z)
                 form.addRow("Extruze:", widget_ext); form.addRow("Rychlost [mm/min]:", inp_speed); form.addRow("Výplň:", widget_infill)
                 self.scroll_layout.addWidget(box)
                 self.slide_widgets[i] = {
-                    'name': inp_name, 'note': inp_note, 'z_offset': inp_z, 'extrusion_rate': inp_ext, 'ext_units': cmb_ext_units,
-                    'print_speed': inp_speed, 'infill_val': inp_infill, 'infill_type': cmb_infill_type, 'last_unit': "µl/mm"
+                    'name': inp_name, 'note': inp_note, 'z_offset': inp_z, 'z_units': cmb_z_units,
+                    'extrusion_rate': inp_ext, 'ext_units': cmb_ext_units,
+                    'print_speed': inp_speed, 'infill_val': inp_infill, 'infill_type': cmb_infill_type,
+                    'last_unit': "µl/mm", 'last_z_unit': "mm"
                 }
             self._is_syncing = False
         self.sync_globals(global_params)
@@ -168,20 +181,65 @@ class RightPanel(QWidget):
         data['last_unit'] = new_unit
         self.mark_modified(idx, 'extrusion_rate')
 
+    def _handle_z_unit_change_local(self, idx, new_unit):
+        """Přepočítá hodnotu tloušťky vrstvy při změně jednotek u konkrétního sklíčka."""
+        if idx not in self.slide_widgets: return
+        data = self.slide_widgets[idx]
+        old_unit = data.get('last_z_unit', "mm")
+        old_val = data['z_offset'].value()
+        
+        from gui.settings import load_settings
+        settings = load_settings()
+        z_step = settings.get("z_step", 0.001)
+
+        if new_unit == "µm":
+            # mm -> µm
+            new_val = old_val * 1000.0
+            data['z_offset'].setRange(0.0, 5000.0)
+            data['z_offset'].setSingleStep(z_step * 1000.0)
+            data['z_offset'].setDecimals(1)
+        else:
+            # µm -> mm
+            new_val = old_val / 1000.0
+            data['z_offset'].setRange(0.0, 5.0)
+            data['z_offset'].setSingleStep(z_step)
+            data['z_offset'].setDecimals(3)
+        
+        data['z_offset'].blockSignals(True)
+        data['z_offset'].setValue(new_val)
+        data['z_offset'].blockSignals(False)
+        data['last_z_unit'] = new_unit
+        self.mark_modified(idx, 'z_offset')
+
     def sync_globals(self, global_params):
         self._is_syncing = True
         
-        # Načteme kalibrační faktor
+        # Načteme nastavení pro z_step
         from gui.settings import load_settings
         import math
         settings = load_settings()
+        z_step = settings.get("z_step", 0.001)
         filament_diam = settings.get('filament_diameter', 9.5)
         default_cal = 1.0 / (math.pi * ((filament_diam / 2.0) ** 2))
         cal_factor = settings.get("calibration_factor", default_cal)
 
         for i, widgets in self.slide_widgets.items():
             mods = self.local_modifications[i]
-            if not mods['z_offset']: widgets['z_offset'].setValue(global_params.get('z_offset', 0.2))
+            if not mods['z_offset']: 
+                base_z = global_params.get('z_offset', 0.2) # Vždy v mm (internal)
+                current_z_unit = widgets['z_units'].currentText()
+                if current_z_unit == "µm":
+                    widgets['z_offset'].setRange(0.0, 5000.0)
+                    widgets['z_offset'].setSingleStep(z_step * 1000.0)
+                    widgets['z_offset'].setDecimals(1)
+                    widgets['z_offset'].setValue(base_z * 1000.0)
+                else:
+                    widgets['z_offset'].setRange(0.0, 5.0)
+                    widgets['z_offset'].setSingleStep(z_step)
+                    widgets['z_offset'].setDecimals(3)
+                    widgets['z_offset'].setValue(base_z)
+                widgets['last_z_unit'] = current_z_unit
+
             if not mods['extrusion_rate']: 
                 # Synchronizace extruze (převod na aktuálně vybranou lokální jednotku)
                 base_ext = global_params.get('extrusion_rate', 1.0) # Vždy v µl/mm (internal)
@@ -229,7 +287,11 @@ class RightPanel(QWidget):
         for i, data in self.slide_widgets.items():
             mods = self.local_modifications[i]
             slide_data = {'name': data['name'].text() or data['name'].placeholderText(), 'note': data['note'].text()}
-            if mods['z_offset']: slide_data['z_offset'] = data['z_offset'].value()
+            if mods['z_offset']: 
+                val_z = data['z_offset'].value()
+                if data['z_units'].currentText() == "µm":
+                    val_z /= 1000.0
+                slide_data['z_offset'] = val_z
             if mods['extrusion_rate']: 
                 # Převod zpět na základní jednotku pro generátor
                 unit = data['ext_units'].currentText()

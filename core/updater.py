@@ -157,8 +157,10 @@ class AutoUpdater(QThread):
         
         if sys.platform.startswith("win"):
             script_path = os.path.join(temp_dir, "gcode_editor_update.bat")
-            # /timeout /t 3 zajistí, že se aplikace stihne ukončit
+            # Použijeme kódování UTF-8 a vynutíme ho i v CMD pomocí chcp 65001
+            # To zajistí, že cesty s českými znaky (např. C:\Users\Tomáš\Dokumenty\...) se zpracují správně.
             bat_content = f"""@echo off
+chcp 65001 > NUL
 setlocal
 echo Aktualizuji Droplet Printing Interface (DPI)...
 echo Prosim cekejte, dokud se okno samo nezavre...
@@ -189,7 +191,7 @@ start "" "{current_exe}"
 endlocal
 del "%~f0"
 """
-            with open(script_path, "w", encoding="cp1250") as f:
+            with open(script_path, "w", encoding="utf-8") as f:
                 f.write(bat_content)
         else:
             script_path = os.path.join(temp_dir, "gcode_editor_update.sh")

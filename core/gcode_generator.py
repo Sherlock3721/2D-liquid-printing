@@ -108,6 +108,9 @@ def generate_gcode(logic, params):
         result.append(settings["loop_start_gcode"])
         if not result[-1].endswith("\n"): result.append("\n")
 
+        # OPRAVA: Pro transformace používáme index 'i', který odpovídá pořadí v 'positions' i 'gcode_items'
+        t = transforms[i] if transforms and i < len(transforms) else None
+        
         current_overrides = slide_overrides.get(str(measurement_idx) if not is_prime else "-1", {})
         loc_z = current_overrides.get('z_offset', z_offset)
         loc_ext = current_overrides.get('extrusion_rate', extrusion_rate)
@@ -122,28 +125,42 @@ def generate_gcode(logic, params):
         # Nový výpočet absolutního Z: - Výška bloku + Výška trysky - Schovaná část + Tloušťka skla + lokální offset + virtuální posun
         print_z = -block_h + loc_nozzle_h - hidden_h + slide_z + loc_z + z_shift
 
-        t = transforms[measurement_idx] if transforms and not is_prime and measurement_idx < len(transforms) else None
         S = t['scale'] if t else 1.0
+        rot = t.get('rotation', 0.0) if t else 0.0
         gui_dx = t['gui_dx'] if t else 0.0
         gui_dy = t['gui_dy'] if t else 0.0
         cx_t = t['cx'] if t else 0.0
         cy_t = t['cy'] if t else 0.0
         bed_y = settings["bed_max_y"]
 
+        rad = math.radians(rot)
+        cos_r = math.cos(rad)
+        sin_r = math.sin(rad)
+
         def transform_pt(x_orig, y_orig):
             # Bod relativně k počátku skupiny v GUI
             # V GUI kreslíme: x_orig, sh - y_orig (Y je invertované)
             local_gui_x = x_orig
             local_gui_y = sh - y_orig
-            
-            # Aplikace měřítka kolem transformOriginPoint (cx_t, cy_t)
-            # ParentPos = item.pos() + Origin + S * (Local - Origin)
-            gui_x_new = gui_dx + cx_t + (local_gui_x - cx_t) * S
-            gui_y_new = gui_dy + cy_t + (local_gui_y - cy_t) * S
-            
+
+            # Vektor relativně k transformOriginPoint
+            dx = local_gui_x - cx_t
+            dy = local_gui_y - cy_t
+
+            # Aplikace měřítka
+            dx *= S
+            dy *= S
+
+            # Aplikace rotace (matice rotace pro směr v GUI)
+            rx = dx * cos_r - dy * sin_r
+            ry = dx * sin_r + dy * cos_r
+
+            # Absolutní pozice v GUI
+            gui_x_new = gui_dx + cx_t + rx
+            gui_y_new = gui_dy + cy_t + ry
+
             # Převod zpět na G-code Y (invertovat přes bed_max_y)
             return gui_x_new, bed_y - gui_y_new
-
         if is_prime:
             cx, cy = posun_x + sw/2, posun_y + sh/2
             x1, x2 = cx - 5, cx + 5

@@ -17,7 +17,8 @@
     "FTO (76 x 50 x 1 mm)": [50.0, 76.0, 1.0],
     "Vlastní": [25.0, 25.0, 1.0]
   },
-  "default_z_offset": 0.2,
+  "default_z_offset": 0.1,
+  "z_step": 0.0025,
   "default_z_hop": 2.0,
   "default_speed": 1500,
   "default_infill": 1.0,

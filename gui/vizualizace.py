@@ -169,18 +169,20 @@ class InteractiveSvgSchema(QGraphicsView):
         for g in self.root.findall('.//svg:g', self.ns):
             label = g.get('{http://www.inkscape.org/namespaces/inkscape}label')
             if label == group_label:
+                # Najdeme textový prvek s labelem "Hodnota"
                 for text in g.findall('.//svg:text', self.ns):
-                    if text.get('{http://www.inkscape.org/namespaces/inkscape}label') == "Hodnota":
+                    t_label = text.get('{http://www.inkscape.org/namespaces/inkscape}label')
+                    if t_label == "Hodnota":
                         # Najdeme první tspan
                         tspan = text.find('.//svg:tspan', self.ns)
                         if tspan is not None:
                             # Vyčistíme všechny vnořené prvky v tomto tspanu
                             for child in list(tspan): tspan.remove(child)
                             tspan.text = f"{new_value:.2f} mm"
-                            # Vyčistíme i ostatní tspany v rámci stejného textu (pro víceřádkové texty)
+                            
+                            # Vyčistíme i ostatní tspany v rámci stejného textu
                             for other_tspan in text.findall('.//svg:tspan', self.ns):
                                 if other_tspan != tspan:
-                                    # Můžeme buď smazat, nebo vyprázdnit. Pro zachování layoutu raději vyprázdnit.
                                     other_tspan.text = ""
                                     for child in list(other_tspan): other_tspan.remove(child)
                         else:
@@ -193,30 +195,32 @@ class InteractiveSvgSchema(QGraphicsView):
 
     def update_tooltip(self, label, visible=True):
         hit_box = self.root.find('.//svg:g[@inkscape:label="hit_box"]', self.ns)
-        if hit_box is not None:
-            hit_box.set('style', 'display:inline' if visible else 'display:none')
-            if visible:
-                info = self.help_texts.get(label, {})
-                for text in hit_box.findall('.//svg:text', self.ns):
-                    t_label = text.get('{http://www.inkscape.org/namespaces/inkscape}label')
-                    if t_label == "Nadpis":
-                        # Vyčistíme text/tspan
-                        tspan = text.find('.//svg:tspan', self.ns)
-                        target = tspan if tspan is not None else text
-                        for child in list(target): target.remove(child)
-                        target.text = label
-                    elif t_label == "Popis":
-                        desc = info.get("desc", "")
-                        lines = desc.split('\n')
-                        tspans = text.findall('.//svg:tspan', self.ns)
-                        if tspans:
-                            for i, t in enumerate(tspans):
-                                for child in list(t): t.remove(child)
-                                t.text = lines[i] if i < len(lines) else ""
-                        else:
-                            for child in list(text): text.remove(child)
-                            text.text = desc
-            self.refresh_svg()
+        if hit_box is None:
+            return
+
+        hit_box.set('style', 'display:inline' if visible else 'display:none')
+        if visible:
+            info = self.help_texts.get(label, {})
+            for text in hit_box.findall('.//svg:text', self.ns):
+                t_label = text.get('{http://www.inkscape.org/namespaces/inkscape}label')
+                if t_label == "Nadpis":
+                    # Vyčistíme text/tspan
+                    tspan = text.find('.//svg:tspan', self.ns)
+                    target = tspan if tspan is not None else text
+                    for child in list(target): target.remove(child)
+                    target.text = label
+                elif t_label == "Popis":
+                    desc = info.get("desc", "")
+                    lines = desc.split('\n')
+                    tspans = text.findall('.//svg:tspan', self.ns)
+                    if tspans:
+                        for i, t in enumerate(tspans):
+                            for child in list(t): t.remove(child)
+                            t.text = lines[i] if i < len(lines) else ""
+                    else:
+                        for child in list(text): text.remove(child)
+                        text.text = desc
+        self.refresh_svg()
 
     def handle_group_click(self, group):
         for g in self.groups.values(): g.set_highlight(False, self.renderer)

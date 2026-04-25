@@ -5,8 +5,8 @@ except ImportError:
 
 import numpy as np
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QComboBox
-from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtCore import Qt, pyqtSlot
+from PyQt6.QtGui import QImage, QPixmap, QIcon
+from PyQt6.QtCore import Qt, pyqtSlot, QSize
 from core.camera_handler import CameraHandler, OPENCV_AVAILABLE
 from gui.settings import load_settings, save_settings
 
@@ -17,9 +17,12 @@ class CameraWidget(QWidget):
         self.handler = CameraHandler()
         self.handler.frame_ready.connect(self.update_frame)
         
-        # Načtení uložené rotace
+        # Načtení uložené rotace a zrcadlení
         self.current_rotation = self.settings.get("camera_rotation", 0)
         self.handler.set_rotation(self.current_rotation)
+        
+        self.is_mirrored = self.settings.get("camera_mirror", False)
+        self.handler.set_mirror(self.is_mirrored)
         
         self._setup_ui()
         
@@ -37,10 +40,21 @@ class CameraWidget(QWidget):
         self.lbl_title = QLabel("Kamera")
         self.lbl_title.setStyleSheet("font-weight: bold; color: #aaa;")
         
-        self.btn_rotate = QPushButton("⟳")
+        self.btn_rotate = QPushButton()
+        self.btn_rotate.setIcon(QIcon("svg/rotate.svg"))
+        self.btn_rotate.setIconSize(QSize(16, 16))
         self.btn_rotate.setFixedSize(30, 24)
         self.btn_rotate.setToolTip("Otočit obraz o 90°")
         self.btn_rotate.clicked.connect(self._rotate_camera)
+
+        self.btn_mirror = QPushButton()
+        self.btn_mirror.setIcon(QIcon("svg/mirror.svg"))
+        self.btn_mirror.setIconSize(QSize(16, 16))
+        self.btn_mirror.setFixedSize(30, 24)
+        self.btn_mirror.setToolTip("Zrcadlově obrátit obraz")
+        self.btn_mirror.setCheckable(True)
+        self.btn_mirror.setChecked(self.is_mirrored)
+        self.btn_mirror.clicked.connect(self._mirror_camera)
         
         self.cmb_source = QComboBox()
         self.cmb_source.setFixedWidth(110)
@@ -49,6 +63,7 @@ class CameraWidget(QWidget):
         header_lay.addWidget(self.lbl_title)
         header_lay.addStretch()
         header_lay.addWidget(self.btn_rotate)
+        header_lay.addWidget(self.btn_mirror)
         header_lay.addWidget(self.cmb_source)
         self.main_layout.addLayout(header_lay)
 
@@ -71,6 +86,7 @@ class CameraWidget(QWidget):
             self.btn_toggle.setEnabled(False)
             self.cmb_source.setEnabled(False)
             self.btn_rotate.setEnabled(False)
+            self.btn_mirror.setEnabled(False)
 
     def _refresh_cameras(self):
         """Zjistí dostupné kamery a naplní dropdown."""
@@ -82,6 +98,7 @@ class CameraWidget(QWidget):
             self.viewfinder.setVisible(False)
             self.btn_toggle.setVisible(False)
             self.btn_rotate.setVisible(False)
+            self.btn_mirror.setVisible(False)
         else:
             for idx in cameras:
                 label = f"USB Kamera {idx}"
@@ -100,6 +117,7 @@ class CameraWidget(QWidget):
             self.viewfinder.setVisible(True)
             self.btn_toggle.setVisible(True)
             self.btn_rotate.setVisible(True)
+            self.btn_mirror.setVisible(True)
         self.cmb_source.blockSignals(False)
 
     def _auto_start(self):
@@ -117,6 +135,16 @@ class CameraWidget(QWidget):
         # Uložení do settings
         self.settings = load_settings()
         self.settings["camera_rotation"] = self.current_rotation
+        save_settings(self.settings)
+
+    def _mirror_camera(self, checked):
+        """Zapne/vypne zrcadlové obrácení a ukládá do nastavení."""
+        self.is_mirrored = checked
+        self.handler.set_mirror(self.is_mirrored)
+        
+        # Uložení do settings
+        self.settings = load_settings()
+        self.settings["camera_mirror"] = self.is_mirrored
         save_settings(self.settings)
 
     def _on_source_changed(self):

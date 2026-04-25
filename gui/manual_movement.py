@@ -246,7 +246,7 @@ class ManualMovementWidget(QWidget):
             QLineEdit { background-color: #121212; border: 1px solid #333; border-radius: 4px; color: #fff; padding: 4px; }
             QLineEdit:focus { border: 1px solid #ff9800; }
             QLineEdit:disabled { color: #555; background-color: #1a1a1a; }
-            QLabel { font-size: 9pt; }
+            QLabel { font-size: 13pt; background-color: none; }
         """)
         for b in [self.btn_x_plus, self.btn_x_minus, self.btn_y_plus, self.btn_y_minus, self.btn_home_xy]:
             b.setFixedSize(65, 45)

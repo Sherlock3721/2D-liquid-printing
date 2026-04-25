@@ -140,8 +140,10 @@ class GCodeApp(QMainWindow):
         import subprocess
         try:
             if sys.platform.startswith("win"):
-                # shell=True je nutné pro spuštění .bat souboru
-                subprocess.Popen([script_path], shell=True, creationflags=0x00000008)
+                # Pro spuštění .bat souboru s mezerami v cestě je nejbezpečnější volat cmd.exe /c
+                # a celou cestu obalit uvozovkami. creationflags=0x00000008 (DETACHED_PROCESS)
+                # zajistí, že okno aktualizátoru nezmizí po ukončení pythonu.
+                subprocess.Popen(f'cmd.exe /c "{script_path}"', shell=True, creationflags=0x00000008)
             else:
                 subprocess.Popen([script_path])
         except Exception as e:
@@ -420,12 +422,20 @@ class GCodeApp(QMainWindow):
     def apply_visual_scale(self, updates):
         if not getattr(self.logic, 'is_vector', False): return
         
-        for index, visual_scale in updates:
-            self.user_scales[index] = self.user_scales.get(index, 1.0) * visual_scale
-            
+        # Uložíme si kotvy pro redraw_scene
+        self.last_anchors = {}
+        for up in updates:
+            idx = up['index']
+            v_scale = up['scale']
+            self.user_scales[idx] = self.user_scales.get(idx, 1.0) * v_scale
+            if up.get('is_resizing'):
+                self.last_anchors[idx] = (up['anchor_s'], up['handle_key'])
+        
+        # Resetujeme vizuální měřítko v GUI, protože se "zapeče" do drah
         if hasattr(self.graphics_view, 'gcode_items'):
             for item in self.graphics_view.gcode_items:
                 item.setScale(1.0)
+            
         self.update_preview()
         
     def start_print(self):

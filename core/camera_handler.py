@@ -19,6 +19,7 @@ class CameraHandler(QObject):
         self.thread = None
         self.lock = threading.Lock()
         self.rotation = 0 # 0, 90, 180, 270
+        self.mirror = False
 
     def start(self, index=None):
         if not OPENCV_AVAILABLE: return
@@ -32,6 +33,10 @@ class CameraHandler(QObject):
     def set_rotation(self, angle):
         """Nastaví rotaci (0, 90, 180, 270)."""
         self.rotation = angle % 360
+
+    def set_mirror(self, enabled):
+        """Nastaví zrcadlové obrácení."""
+        self.mirror = enabled
 
     def stop(self):
         self.running = False
@@ -60,6 +65,9 @@ class CameraHandler(QObject):
                     frame = cv2.rotate(frame, cv2.ROTATE_180)
                 elif self.rotation == 270:
                     frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                
+                if self.mirror:
+                    frame = cv2.flip(frame, 1)
                 
                 self.frame_ready.emit(frame)
             else:

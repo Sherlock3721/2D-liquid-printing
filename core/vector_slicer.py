@@ -1,5 +1,6 @@
 import math
 import re
+import numpy as np
 from svgpathtools import svg2paths, Line
 from shapely.geometry import Polygon, LineString, MultiLineString
 from shapely.ops import unary_union
@@ -223,8 +224,12 @@ class VectorSlicer:
             else:
                 raise NeedsScalingError(width, height, slide_w, slide_h)
 
-        # 3. Vycentrování na sklíčku
-        offset_x, offset_y = (slide_w - width)/2.0, (slide_h - height)/2.0
+        # 3. Vycentrování na sklíčku (pokud není zakázáno)
+        if params.get('no_center', False):
+            offset_x, offset_y = margin, margin
+        else:
+            offset_x, offset_y = (slide_w - width)/2.0, (slide_h - height)/2.0
+            
         centered_geoms = [translate(g, xoff=offset_x, yoff=offset_y) for g in normalized_geoms]
         
         user_scale = params.get('user_scale', 1.0)
@@ -235,22 +240,26 @@ class VectorSlicer:
 
         # 3.5 Optimalizace pořadí objektů (Nearest Neighbor podle centroidů)
         if centered_geoms:
-            opt_geoms = []
-            curr_pt = (0, 0)
-            unvisited = list(centered_geoms)
-            while unvisited:
-                best_geom = None
-                best_dist = float('inf')
-                for g in unvisited:
-                    gc = g.centroid
-                    dist = (curr_pt[0] - gc.x)**2 + (curr_pt[1] - gc.y)**2
-                    if dist < best_dist:
-                        best_dist = dist
-                        best_geom = g
-                opt_geoms.append(best_geom)
-                curr_pt = (best_geom.centroid.x, best_geom.centroid.y)
-                unvisited.remove(best_geom)
-            centered_geoms = opt_geoms
+            # Pokud je objektů příliš mnoho, přeskočíme O(n^2) optimalizaci, aby program nezamrzl
+            if len(centered_geoms) > 1000:
+                print(f"Varování: Příliš mnoho objektů ({len(centered_geoms)}), přeskakuji optimalizaci pořadí.")
+            else:
+                opt_geoms = []
+                curr_pt = (0, 0)
+                unvisited = list(centered_geoms)
+                while unvisited:
+                    best_geom = None
+                    best_dist = float('inf')
+                    for g in unvisited:
+                        gc = g.centroid
+                        dist = (curr_pt[0] - gc.x)**2 + (curr_pt[1] - gc.y)**2
+                        if dist < best_dist:
+                            best_dist = dist
+                            best_geom = g
+                    opt_geoms.append(best_geom)
+                    curr_pt = (best_geom.centroid.x, best_geom.centroid.y)
+                    unvisited.remove(best_geom)
+                centered_geoms = opt_geoms
 
         # 4. Finalizace cest (Simplifikace a řazení: Perimetr -> Infill pro každý objekt)
         path_x, path_y = [], []
@@ -266,59 +275,111 @@ class VectorSlicer:
 
         def optimize_subpaths(px_list, py_list, start_pt):
             if not px_list: return [], [], start_pt
+
+            # Pro velmi velké množství segmentů (např. importované tečky)
+            # použijeme KDTree pro Nearest Neighbor hledání (O(n log n))
+            if len(px_list) > 200:
+                try:
+                    from scipy.spatial import KDTree
+                    opt_x, opt_y = [], []
+                    unvisited_indices = set(range(len(px_list)))
+                    curr_pt = np.array(start_pt)
+
+                    # Připravíme body pro KDTree (starty i konce segmentů)
+                    # Indexy v kdtree_pts budou mapovat na (orig_idx, is_reverse)
+                    kdtree_pts = []
+                    mapping = []
+                    for i in range(len(px_list)):
+                        if not px_list[i]: continue
+                        kdtree_pts.append([px_list[i][0], py_list[i][0]])
+                        mapping.append((i, False))
+                        kdtree_pts.append([px_list[i][-1], py_list[i][-1]])
+                        mapping.append((i, True))
+
+                    if not kdtree_pts: return [], [], start_pt
+                    tree = KDTree(kdtree_pts)
+
+                    while unvisited_indices:
+                        # Najdeme několik nejbližších bodů (protože ty nejbližší mohou být již navštívené)
+                        # k=min(len(kdtree_pts), 50) je rozumný kompromis
+                        dists, indices = tree.query(curr_pt, k=min(len(kdtree_pts), 100))
+
+                        found = False
+                        if isinstance(indices, (int, np.integer)): indices = [indices]
+
+                        for idx in indices:
+                            orig_idx, is_rev = mapping[idx]
+                            if orig_idx in unvisited_indices:
+                                unvisited_indices.remove(orig_idx)
+                                new_seg_x = px_list[orig_idx][::-1] if is_rev else px_list[orig_idx]
+                                new_seg_y = py_list[orig_idx][::-1] if is_rev else py_list[orig_idx]
+
+                                # Spojování (stejná logika jako v O(n2))
+                                JOIN_THRESHOLD_SQ = 0.05**2
+                                dist_sq = (curr_pt[0] - new_seg_x[0])**2 + (curr_pt[1] - new_seg_y[0])**2
+                                if opt_x and dist_sq < JOIN_THRESHOLD_SQ:
+                                    opt_x[-1].extend(new_seg_x[1:])
+                                    opt_y[-1].extend(new_seg_y[1:])
+                                else:
+                                    opt_x.append(new_seg_x)
+                                    opt_y.append(new_seg_y)
+
+                                curr_pt = np.array([new_seg_x[-1], new_seg_y[-1]])
+                                found = True
+                                break
+
+                        if not found:
+                            # Pokud KDTree query selhalo v nalezení nenavštíveného (stát se to může při k < len),
+                            # dojedeme to klasicky pro jeden náhodný zbylý prvek
+                            next_idx = next(iter(unvisited_indices))
+                            unvisited_indices.remove(next_idx)
+                            opt_x.append(px_list[next_idx])
+                            opt_y.append(py_list[next_idx])
+                            curr_pt = np.array([px_list[next_idx][-1], py_list[next_idx][-1]])
+
+                    return opt_x, opt_y, tuple(curr_pt)
+                except Exception as e:
+                    print(f"KDTree optimalizace selhala: {e}. Používám fallback.")
+
             opt_x, opt_y = [], []
             curr_pt = start_pt
             unvisited = list(range(len(px_list)))
-            
+
             while unvisited:
                 best_idx = -1
                 best_dist = float('inf')
                 reverse_path = False
-                
-                for i in unvisited:
-                    # Ochrana proti prázdným seznamům bodů
-                    if not px_list[i] or not py_list[i]:
-                        continue
 
+                # Pro střední množství (do 200) je O(n2) v Pythonu snesitelné
+                for i in unvisited:
+                    if not px_list[i] or not py_list[i]: continue
                     s_pt = (px_list[i][0], py_list[i][0])
                     e_pt = (px_list[i][-1], py_list[i][-1])
-                    
+
                     d_start = (curr_pt[0] - s_pt[0])**2 + (curr_pt[1] - s_pt[1])**2
                     if d_start < best_dist:
-                        best_dist = d_start
-                        best_idx = i
-                        reverse_path = False
-                        
+                        best_dist = d_start; best_idx = i; reverse_path = False
+
                     d_end = (curr_pt[0] - e_pt[0])**2 + (curr_pt[1] - e_pt[1])**2
                     if d_end < best_dist:
-                        best_dist = d_end
-                        best_idx = i
-                        reverse_path = True
-                
-                if best_idx == -1: # Pokud jsme nenašli žádný platný bod (vše prázdné)
-                    for i in unvisited: unvisited.remove(i)
-                    break
-                
-                # Pokud je vzdálenost k dalšímu bodu téměř nulová (< 0.05 mm),
-                # spojíme body do jednoho seznamu (v rámci opt_x[-1]) místo přidání nového seznamu.
-                JOIN_THRESHOLD_SQ = 0.05**2
-                can_join = False
-                if opt_x and best_dist < JOIN_THRESHOLD_SQ:
-                    can_join = True
+                        best_dist = d_end; best_idx = i; reverse_path = True
 
+                if best_idx == -1: break
+
+                JOIN_THRESHOLD_SQ = 0.05**2
                 new_seg_x = px_list[best_idx][::-1] if reverse_path else px_list[best_idx]
                 new_seg_y = py_list[best_idx][::-1] if reverse_path else py_list[best_idx]
 
-                if can_join:
-                    # Přidáme body k poslednímu existujícímu segmentu (vynecháme první bod, je duplicitní)
+                if opt_x and best_dist < JOIN_THRESHOLD_SQ:
                     opt_x[-1].extend(new_seg_x[1:])
                     opt_y[-1].extend(new_seg_y[1:])
                 else:
                     opt_x.append(new_seg_x)
                     opt_y.append(new_seg_y)
-                
+
                 curr_pt = (opt_x[-1][-1], opt_y[-1][-1])
                 unvisited.remove(best_idx)
+
             return opt_x, opt_y, curr_pt
 
         global_curr_pt = (0, 0)
@@ -336,16 +397,33 @@ class VectorSlicer:
                     if not rot_g.is_empty:
                         bx1, by1, bx2, by2 = rot_g.bounds
                         y_c = by1 + (infill_spacing/2.0)
+                        reverse_x = False
+                        
+                        # Odhad počtu bodů pro ochranu před zamrznutím
+                        estimated_dots = ((bx2 - bx1) / infill_spacing) * ((by2 - by1) / infill_spacing)
+                        if estimated_dots > 100000:
+                            print(f"Varování: Příliš vysoká hustota teček (odhad {int(estimated_dots)}). Spacing byl zvýšen.")
+                            infill_spacing = math.sqrt(((bx2 - bx1) * (by2 - by1)) / 100000)
+
                         while y_c < by2:
+                            line_x_coords = []
                             x_c = bx1 + (infill_spacing/2.0)
                             while x_c < bx2:
+                                line_x_coords.append(x_c)
+                                x_c += infill_spacing
+                            
+                            if reverse_x:
+                                line_x_coords = line_x_coords[::-1]
+                            
+                            for x_c in line_x_coords:
                                 pt = Point(x_c, y_c)
                                 if rot_g.contains(pt):
                                     res_pt = rotate(pt, infill_angle, origin=centroid) if infill_angle != 0 else pt
                                     obj_px.append([res_pt.x, res_pt.x])
                                     obj_py.append([res_pt.y, res_pt.y])
-                                x_c += infill_spacing
+                            
                             y_c += infill_spacing
+                            reverse_x = not reverse_x
                 elif isinstance(geom, (LineString, MultiLineString)):
                     lines = geom.geoms if hasattr(geom, 'geoms') else [geom]
                     for line in lines:
@@ -356,9 +434,12 @@ class VectorSlicer:
                             obj_py.append([pt.y, pt.y])
                             dist += infill_spacing if infill_spacing > 0 else line.length + 1
                             
-                ox, oy, global_curr_pt = optimize_subpaths(obj_px, obj_py, global_curr_pt)
-                path_x.extend(ox)
-                path_y.extend(oy)
+                # Pro tečky generované mřížkou nepoužíváme složitou optimalizaci, 
+                # protože už jsou v cik-cak pořadí. Jen je přidáme k cestě.
+                path_x.extend(obj_px)
+                path_y.extend(obj_py)
+                if obj_px:
+                    global_curr_pt = (obj_px[-1][-1], obj_py[-1][-1])
                 continue
 
             obj_perim_x, obj_perim_y = [], []

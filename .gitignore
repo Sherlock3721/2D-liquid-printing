@@ -1,16 +1,40 @@
+# Virtual environment
 venv/
+.venv/
+env/
+
+# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Build and distribution
 build/
 dist/
-# *.spec  <-- Povolujeme spec soubory pro build
+*.spec
+
+# User settings and temporary files
 settings.json
 temp_print.gcode
 .env
 .DS_Store
+
+# IDEs
+.vscode/
+.idea/
+.obsidian/
+
+# G-code and large data
 *.gcode
 !gcodes/odpliv.gcode
 !gcodes/*.svg
 !gcodes/*.dxf
-/home/evolve/gcode_editor/gcodes/*.gcode
+gcodes/*.gcode
+
+# Tool specific
 .aider*
+.gemini/
+GEMINI.md
+GEMINI.md

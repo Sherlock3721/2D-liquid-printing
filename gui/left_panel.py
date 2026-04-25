@@ -3,7 +3,8 @@ import math
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QHBoxLayout, QComboBox, 
                              QSpinBox, QDoubleSpinBox, QLineEdit, QLabel, 
                              QPushButton, QFrame, QProgressBar)
-from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtCore import pyqtSignal, Qt, QSize
+from PyQt6.QtGui import QIcon
 from printer_com import SerialPrinterWorker
 from gui.settings import load_settings
 from gui.feedback_dialog import FeedbackDialog
@@ -93,10 +94,27 @@ class LeftPanel(QWidget):
         # --- Parametry tisku ---
         self.form_layout.addRow(QLabel("<b>--- Tiskové parametry ---</b>"))
 
+        # --- TLOUŠŤKA VRSTVY S VÝBĚREM JEDNOTEK ---
+        self.widget_z = QWidget()
+        layout_z = QHBoxLayout(self.widget_z)
+        layout_z.setContentsMargins(0, 0, 0, 0)
+
         self.inp_z_offset = QDoubleSpinBox()
-        self.inp_z_offset.setRange(0.0, 5.0); self.inp_z_offset.setSingleStep(0.05)
+        z_step = self.settings.get("z_step", 0.001)
+        self.inp_z_offset.setRange(0.0, 5.0)
+        self.inp_z_offset.setSingleStep(z_step)
+        self.inp_z_offset.setDecimals(3)
         self.inp_z_offset.setValue(self.settings.get("default_z_offset", 0.2))
-        self.form_layout.addRow("Tloušťka vrstvy [mm]:", self.inp_z_offset)
+
+        self.cmb_z_units = QComboBox()
+        self.cmb_z_units.addItems(["mm", "µm"])
+        self._last_z_unit = "mm"
+
+        layout_z.addWidget(self.inp_z_offset)
+        layout_z.addWidget(self.cmb_z_units)
+        self.form_layout.addRow("Tloušťka vrstvy:", self.widget_z)
+
+        self.cmb_z_units.currentTextChanged.connect(self._handle_z_unit_change)
         
         # --- EXTRUZE S VÝBĚREM JEDNOTEK ---
         self.widget_extrusion = QWidget()
@@ -162,7 +180,9 @@ class LeftPanel(QWidget):
         layout_port = QHBoxLayout()
         self.cmb_port = QComboBox()
         self.cmb_port.addItem("Automaticky")
-        self.btn_refresh_ports = QPushButton("🔄")
+        self.btn_refresh_ports = QPushButton()
+        self.btn_refresh_ports.setIcon(QIcon("svg/rotate.svg"))
+        self.btn_refresh_ports.setIconSize(QSize(16, 16))
         self.btn_refresh_ports.setFixedWidth(30)
         self.btn_refresh_ports.clicked.connect(self._refresh_ports)
         layout_port.addWidget(self.cmb_port)
@@ -373,6 +393,12 @@ class LeftPanel(QWidget):
             nozzle_h = params[0]
             nozzle_d = params[1]
             nozzle_hidden = params[2] if len(params) > 2 else 4.0
+
+        # Převod z_offset na mm
+        z_off = self.inp_z_offset.value()
+        if self.cmb_z_units.currentText() == "µm":
+            z_off /= 1000.0
+
         # Převod extruze na základní jednotku µl/mm pro generátor (pokud to nejsou kroky)
         current_unit = self.cmb_ext_units.currentText()
         if current_unit == "kroky/mm":
@@ -383,7 +409,7 @@ class LeftPanel(QWidget):
 
         return {
             'holder_type': "Multiplex (více sklíček)", 'glass_type': glass_type, 'slide_w': slide_w, 'slide_h': slide_h, 'slide_z': slide_z,
-            'sample_count': self.inp_count.value(), 'z_offset': self.inp_z_offset.value(), 
+            'sample_count': self.inp_count.value(), 'z_offset': z_off, 
             'extrusion_rate': ext_rate_internal, 'extrusion_unit': current_unit,
             'nozzle_type': nozzle_type, 'nozzle_diam': nozzle_d, 'nozzle_height': nozzle_h, 'nozzle_hidden': nozzle_hidden,
             'print_speed': self.settings.get("print_speed", 1500), 'retraction': self.settings.get("retraction", 1.0),
@@ -431,6 +457,30 @@ class LeftPanel(QWidget):
         if is_paused: self.btn_pause.setText("Pokračovat"); self.btn_pause.setStyleSheet("background-color: #17a2b8; color: white;")
         else: self.btn_pause.setText("Pozastavit"); self.btn_pause.setStyleSheet("background-color: #ffc107; color: black;")
 
+    def _handle_z_unit_change(self, new_unit):
+        """Přepočítá hodnotu tloušťky vrstvy při změně jednotek."""
+        old_val = self.inp_z_offset.value()
+        z_step = self.settings.get("z_step", 0.001)
+
+        if new_unit == "µm":
+            # mm -> µm
+            new_val = old_val * 1000.0
+            self.inp_z_offset.setRange(0.0, 5000.0)
+            self.inp_z_offset.setSingleStep(z_step * 1000.0)
+            self.inp_z_offset.setDecimals(1)
+        else:
+            # µm -> mm
+            new_val = old_val / 1000.0
+            self.inp_z_offset.setRange(0.0, 5.0)
+            self.inp_z_offset.setSingleStep(z_step)
+            self.inp_z_offset.setDecimals(3)
+
+        self.inp_z_offset.blockSignals(True)
+        self.inp_z_offset.setValue(new_val)
+        self.inp_z_offset.blockSignals(False)
+        self._last_z_unit = new_unit
+        self.values_changed.emit()
+
     def _update_total_z(self):
         self.settings = load_settings()
         params = self.get_all_params()
@@ -443,6 +493,7 @@ class LeftPanel(QWidget):
         
         # Nový výpočet dle požadavku: - Výška bloku + výška trysky - schovaná část + tloušťka skla + tloušťka vrstvy
         total_z = -block_h + nozzle_h - nozzle_hidden + slide_z + layer_z
+        # self.lbl_total_z.setText(f"{total_z:.2f} mm") # UI prvek byl odstraněn
 
     def refresh_settings(self):
         """Znovu načte seznamy skel a trysek z nastavení."""
@@ -451,7 +502,19 @@ class LeftPanel(QWidget):
         self.nozzle_defs = self.settings.get("nozzle_defs", {})
 
         # Aktualizace výchozího Z-offsetu (tloušťky vrstvy)
-        self.inp_z_offset.setValue(self.settings.get("default_z_offset", 0.2))
+        z_step = self.settings.get("z_step", 0.001)
+        z_val = self.settings.get("default_z_offset", 0.2)
+        
+        if self.cmb_z_units.currentText() == "µm":
+            self.inp_z_offset.setRange(0.0, 5000.0)
+            self.inp_z_offset.setSingleStep(z_step * 1000.0)
+            self.inp_z_offset.setDecimals(1)
+            self.inp_z_offset.setValue(z_val * 1000.0)
+        else:
+            self.inp_z_offset.setRange(0.0, 5.0)
+            self.inp_z_offset.setSingleStep(z_step)
+            self.inp_z_offset.setDecimals(3)
+            self.inp_z_offset.setValue(z_val)
 
         # Aktualizace ComboBoxů při zachování vybrané hodnoty pokud existuje
         curr_glass = self.cmb_glass.currentText()

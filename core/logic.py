@@ -88,10 +88,17 @@ class GCodeLogic:
             base_geometries = slicer.geometries
             
             # 2. Pro každé sklíčko aplikujeme specifické parametry (infill, měřítko)
+            prime_active = vector_params.get('prime_active', False)
+            
             for i in range(sample_count):
-                vp = vector_params.copy()
-                vp['user_scale'] = user_scales.get(i, 1.0)
+                # Pokud je priming aktivní, vzorky v GUI začínají od indexu 1 (index 0 je odpliv)
+                logic_idx = i + 1 if prime_active else i
                 
+                vp = vector_params.copy()
+                vp['user_scale'] = user_scales.get(logic_idx, 1.0)
+                vp['no_center'] = True # Vypneme centrování ve sliceru, řeší GUI
+                
+                # Pro overrides používáme stále index vzorku (0, 1, 2...)
                 if i in slide_overrides:
                     vp['infill_val'] = slide_overrides[i].get('infill_val', vp['infill_val'])
                     vp['infill_type'] = slide_overrides[i].get('infill_type', vp.get('infill_type', 'mm'))
