@@ -1,6 +1,6 @@
 # Droplet Printing Interface (DPI)
 
-![Verze](https://img.shields.io/badge/verze-0.1.4-blue)
+![Verze](https://img.shields.io/badge/verze-1.2.2-blue)
 ![Python](https://img.shields.io/badge/python-3.11%2B-green)
 ![Platforma](https://img.shields.io/badge/platforma-Windows%20%7C%20Linux-lightgrey)
 
