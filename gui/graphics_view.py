@@ -892,7 +892,8 @@ class InteractiveGraphicsView(QGraphicsView):
                 gx, gy, sw, sh, _ = pos_data
                 sy = view_y(gy, sh)
                 local_allowed_rect = QRectF(gx, sy, sw, sh)
-                movable_group = DraggableGCode(local_allowed_rect, index=i)
+                # OPRAVA: Použijeme original_idx, aby index v GUI odpovídal indexu v positions/user_scales (včetně odplivu)
+                movable_group = DraggableGCode(local_allowed_rect, index=original_idx)
                 
                 if hasattr(logic, 'paths_by_index') and i in logic.paths_by_index:
                     px_list = logic.paths_by_index[i]['x']
@@ -939,15 +940,14 @@ class InteractiveGraphicsView(QGraphicsView):
                 # Získání informací o kotvě z hlavního okna (pokud existují)
                 main_window = self.parent().parent()
                 anchors = getattr(main_window, 'last_anchors', {})
-                anchor_data = anchors.get(i)
+                anchor_data = anchors.get(original_idx)
 
-                if i in saved_transforms:
+                if original_idx in saved_transforms:
                     # Pokud právě proběhl redraw po manipulaci, visual scale by měl být 1.0, 
                     # protože se už zapekl do user_scale v logic.
-                    # Ale pozor - redraw může být vyvolán i změnou jiného parametru.
-                    v_scale = saved_transforms[i]['scale']
-                    v_pos = saved_transforms[i]['pos']
-                    v_rot = saved_transforms[i].get('rotation', 0.0)
+                    v_scale = saved_transforms[original_idx]['scale']
+                    v_pos = saved_transforms[original_idx]['pos']
+                    v_rot = saved_transforms[original_idx].get('rotation', 0.0)
                     
                     if anchor_data:
                         # Pokud máme kotvu, zrušíme visual scale a přichytíme k ní
@@ -956,7 +956,6 @@ class InteractiveGraphicsView(QGraphicsView):
                         movable_group.setRotation(v_rot)
                         
                         # Zjistíme scénickou pozici kotvy na NOVÝCH drahách (při scale 1.0)
-                        # Jelikož jsme už nastavili rotaci a scale, mapToScene funguje správně.
                         ir = item_print.boundingRect()
                         opp_map = {
                             'tl': ir.bottomRight(), 'tr': ir.bottomLeft(), 
@@ -965,20 +964,20 @@ class InteractiveGraphicsView(QGraphicsView):
                         }
                         a_l = opp_map[h_key]
                         
-                        # Aktuální pozice kotvy ve scéně při stávajícím setPos(0,0)
+                        # Aktuální pozice kotvy ve scéně
                         current_anchor_s = movable_group.mapToScene(a_l)
                         
                         # Nastavíme pozici tak, aby lokální kotva byla na cílové scénické kotvě
                         movable_group.setPos(movable_group.pos() + (anchor_s - current_anchor_s))
-                        # Smažeme kotvu, aby se nepoužila při dalším redraw (např. změna teploty)
-                        del anchors[i]
+                        # Smažeme kotvu, aby se nepoužila při dalším redraw
+                        del anchors[original_idx]
                     else:
                         movable_group.setScale(v_scale)
                         movable_group.setRotation(v_rot)
                         movable_group.setPos(v_pos)
-                elif loaded_transforms and i < len(loaded_transforms):
+                elif loaded_transforms and original_idx < len(loaded_transforms):
                     # Pro načtená metadata použijeme uloženou absolutní pozici
-                    lt = loaded_transforms[i]
+                    lt = loaded_transforms[original_idx]
                     movable_group.setScale(lt.get('scale', 1.0))
                     movable_group.setRotation(lt.get('rotation', 0.0))
                     movable_group.setPos(lt.get('gui_dx', gx), lt.get('gui_dy', sy))
