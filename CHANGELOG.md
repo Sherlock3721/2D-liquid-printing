@@ -5,7 +5,7 @@ Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru
 ## [1.3.7] - 2026-04-27
 
 ### 🚀 Novinky a vylepšení
-*   **Modul kamery:** Přidána funkce pro uložení snímku (screenshot) z živého náhledu pomocí ikony `svg/screenshot.svg`.
+*   **Modul kamery:** Přidána funkce pro uložení snímku (screenshot) z živého náhledu v **maximálním rozlišení kamery** pomocí ikony `svg/screenshot.svg`.
 *   **Optimalizace:** Vylepšen algoritmus pro dávkování teček (dot dispensing), oprava rotace obrazu z kamery a celkové vyčištění repozitáře.
 
 ### 🛠 Opravy chyb

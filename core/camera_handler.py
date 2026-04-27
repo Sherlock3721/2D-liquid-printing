@@ -50,6 +50,13 @@ class CameraHandler(QObject):
     def _capture_loop(self):
         if not OPENCV_AVAILABLE: return
         self.cap = cv2.VideoCapture(self.camera_index)
+        
+        # Pokus o nastavení maximálního rozlišení
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+        # Některé kamery vyžadují MJPG pro vysoké rozlišení
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        
         if not self.cap.isOpened():
             print(f"Chyba: Kameru s indexem {self.camera_index} nelze otevřít.")
             self.running = False
