@@ -2,6 +2,15 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.3.9] - 2026-04-27
+
+### 🚀 Novinky a vylepšení
+*   **Kalkulačka kalibrace:** V nastavení byla záložka "Převody" přejmenována na **"Kalibrace"** a byla do ní přidána interaktivní kalkulačka pro zpřesnění extruze.
+    *   Umožňuje zadat hustotu kapaliny (výchozí 1.0 pro destilovanou vodu).
+    *   Vypočítává teoretickou hmotnost vzorku.
+    *   Umožňuje zadat reálnou naváženou hmotnost a automaticky vypočítat nový koeficient dle vzorce: `(teoretická / reálná) * předchozí koeficient`.
+*   **Výchozí koeficient:** Výchozí kalibrační faktor byl aktualizován na `0.323877` pro zajištění správného dávkování s neupraveným firmwarem.
+
 ## [1.3.8] - 2026-04-27
 
 ### 🛠 Opravy chyb

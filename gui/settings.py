@@ -241,13 +241,55 @@ class SettingsDialog(QDialog):
         lay_hw.addStretch()
         tabs.addTab(tab_hw, "Podložka")
 
-        # --- ZÁLOŽKA 3: Převody & Kalibrace ---
+        # --- ZÁLOŽKA 3: Kalibrace ---
         tab_cal = QWidget()
         lay_cal = QVBoxLayout(tab_cal)
-        lay_cal.addWidget(QLabel("<b>Kalibrace extruze (Objem -> Kroky):</b>"))
-        lay_cal.addWidget(QLabel("Tento koeficient určuje, kolik 'E' jednotek (mm filamentu) odpovídá 1 µl kapaliny."))
+        lay_cal.addWidget(QLabel("<b>Kalibrace extruze (Hmotnostní metoda):</b>"))
+        lay_cal.addWidget(QLabel("Pomocí této kalkulačky můžete zpřesnit dávkování na základě vážení vytisknutého vzorku."))
         
         cal_form = QFormLayout()
+        
+        self.inp_density = QDoubleSpinBox()
+        self.inp_density.setRange(0.1, 20.0); self.inp_density.setDecimals(4); self.inp_density.setSuffix(" g/cm³")
+        self.inp_density.setValue(self.settings.get("liquid_density", 1.0)) # Voda
+        self.inp_density.valueChanged.connect(self._update_theo_weight)
+        cal_form.addRow("Hustota kapaliny (voda=1.0):", self.inp_density)
+
+        self.inp_test_vol = QDoubleSpinBox()
+        self.inp_test_vol.setRange(1, 100000); self.inp_test_vol.setDecimals(1); self.inp_test_vol.setSuffix(" µl")
+        self.inp_test_vol.setValue(1000.0)
+        self.inp_test_vol.valueChanged.connect(self._update_theo_weight)
+        cal_form.addRow("Testovaný objem (příkaz):", self.inp_test_vol)
+        
+        self.lbl_theo_weight = QLabel("1.0000 g")
+        self.lbl_theo_weight.setStyleSheet("font-weight: bold; color: #0d6efd;")
+        cal_form.addRow("Současná extruze (teoretická):", self.lbl_theo_weight)
+        
+        self.inp_real_weight = QDoubleSpinBox()
+        self.inp_real_weight.setRange(0.0001, 100.0); self.inp_real_weight.setDecimals(4); self.inp_real_weight.setSuffix(" g")
+        self.inp_real_weight.setValue(1.0)
+        cal_form.addRow("Reálná extruze (naváženo):", self.inp_real_weight)
+        
+        lay_cal.addLayout(cal_form)
+
+        # Vzorec v řádku
+        formula_widget = QWidget()
+        formula_lay = QHBoxLayout(formula_widget)
+        formula_lay.setContentsMargins(0, 10, 0, 10)
+        self.lbl_formula = QLabel("( teoretická / reálná ) * předchozí koeficient")
+        self.lbl_formula.setStyleSheet("font-size: 13px; color: #aaa; background: #222; padding: 10px; border-radius: 5px;")
+        formula_lay.addWidget(self.lbl_formula, 1)
+        
+        btn_apply_cal = QPushButton("VYPOČÍTAT A POUŽÍT")
+        btn_apply_cal.setStyleSheet("background-color: #198754; color: white; font-weight: bold; height: 35px; padding: 0 15px;")
+        btn_apply_cal.clicked.connect(self._run_calibration)
+        formula_lay.addWidget(btn_apply_cal)
+        
+        lay_cal.addWidget(formula_widget)
+
+        lay_cal.addWidget(QLabel("<br><b>Výsledný kalibrační faktor:</b>"))
+        
+        cal_res_form = QFormLayout()
         self.inp_cal_factor = QDoubleSpinBox()
         self.inp_cal_factor.setRange(0.0001, 1000.0)
         self.inp_cal_factor.setDecimals(6)
@@ -256,10 +298,10 @@ class SettingsDialog(QDialog):
         # Výpočet výchozího faktoru pokud v nastavení chybí
         filament_diam = self.settings.get('filament_diameter', 9.5)
         import math
-        default_cal = 1.0 / (math.pi * ((filament_diam / 2.0) ** 2))
+        default_cal = 0.323877 # Nový výchozí koeficient od uživatele
         self.inp_cal_factor.setValue(self.settings.get("calibration_factor", default_cal))
         
-        cal_form.addRow("Kalibrační faktor [E-jednotka / µl]:", self.inp_cal_factor)
+        cal_res_form.addRow("Kalibrační faktor [E-jednotka / µl]:", self.inp_cal_factor)
         
         self.inp_z_step = QDoubleSpinBox()
         self.inp_z_step.setRange(0.0001, 1.0)
@@ -267,22 +309,11 @@ class SettingsDialog(QDialog):
         self.inp_z_step.setSingleStep(0.0025)
         self.inp_z_step.setSuffix(" mm")
         self.inp_z_step.setValue(self.settings.get("z_step", 0.0025))
-        cal_form.addRow("Minimální krok Z (rozlišení):", self.inp_z_step)
+        cal_res_form.addRow("Minimální krok Z (rozlišení):", self.inp_z_step)
         
-        lay_cal.addLayout(cal_form)
-
-        # Informační text
-        info_label = QLabel(
-            "<br><b>Nápověda pro stříkačku (vnitřní průměr 9.5 mm):</b><br>"
-            "Plocha pístu je cca 70.88 mm².<br>"
-            "1 mm posunu pístu = cca 70.88 µl kapaliny.<br>"
-            "1 µl = cca 0.0141 mm posunu pístu (jednotka E v G-kódu).<br>"
-            "<i>Poznámka: Hodnota 1.0 znamená, že 1 µl = 1 mm posunu pístu.</i>"
-        )
-        info_label.setWordWrap(True)
-        lay_cal.addWidget(info_label)
+        lay_cal.addLayout(cal_res_form)
         lay_cal.addStretch()
-        tabs.addTab(tab_cal, "Převody")
+        tabs.addTab(tab_cal, "Kalibrace")
 
         # --- ZÁLOŽKA 4: G-code ---
         tab_gcode = QWidget(); lay_gcode = QVBoxLayout(tab_gcode)
@@ -520,6 +551,27 @@ class SettingsDialog(QDialog):
             # Zde by bylo nutné překreslit všechny řádky, nejjednodušší je zavřít a otevřít znovu nebo vyčistit
             self.accept() 
 
+    def _update_theo_weight(self):
+        density = self.inp_density.value()
+        vol = self.inp_test_vol.value()
+        theo_g = vol * (density / 1000.0)
+        self.lbl_theo_weight.setText(f"{theo_g:.4f} g")
+
+    def _run_calibration(self):
+        density = self.inp_density.value()
+        vol = self.inp_test_vol.value()
+        theo_g = vol * (density / 1000.0)
+        real_g = self.inp_real_weight.value()
+        old_cal = self.inp_cal_factor.value()
+        
+        if real_g > 0:
+            new_cal = (theo_g / real_g) * old_cal
+            self.inp_cal_factor.setValue(new_cal)
+            self.lbl_formula.setText(f"({theo_g:.4f}g / {real_g:.4f}g) * {old_cal:.6f} = {new_cal:.6f}")
+            QMessageBox.information(self, "Kalibrace", f"Nový koeficient vypočítán a aplikován:\n<b>{new_cal:.6f}</b>")
+        else:
+            QMessageBox.warning(self, "Chyba", "Reálná hmotnost musí být větší než 0.")
+
     def save_and_close(self):
         # Sestavení nozzle_defs ze seznamu řádků
         new_nozzles = {}
@@ -546,6 +598,7 @@ class SettingsDialog(QDialog):
             "filament_diameter": self.inp_filament_d.value(),
             "flow_multiplier": self.inp_flow_mult.value(),
             "block_height": self.inp_block_height.value(),
+            "liquid_density": self.inp_density.value(),
             "calibration_factor": self.inp_cal_factor.value(),
             "z_step": self.inp_z_step.value(),
             "start_gcode": self.txt_start.toPlainText(), "end_gcode": self.txt_end.toPlainText(),
