@@ -454,9 +454,9 @@ class GCodeApp(QMainWindow):
             # FILTRACE BED LEVELINGU (pouze pro přímý tisk)
             if not params.get('bed_leveling', True):
                 import re
-                # Odstraníme pouze příkaz G80 (Mesh Bed Leveling), pokud existuje.
-                # Ponecháme M1 (zprávy pro PINDA) i G28 (Homing).
+                # Odstraníme G80 (MBL) a nahradíme G28 za G28 W (Homing bez MBL)
                 gcode_text = re.sub(r'^G80\b.*?\n', '; --- G80 (BED LEVELING) SKIPNUT ---\n', gcode_text, flags=re.MULTILINE | re.IGNORECASE)
+                gcode_text = re.sub(r'^G28\b', 'G28 W', gcode_text, flags=re.MULTILINE | re.IGNORECASE)
 
             with open(temp_file, 'w', encoding='utf-8') as f:
                 f.write(gcode_text)

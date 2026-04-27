@@ -4,9 +4,9 @@ except ImportError:
     pass
 
 import numpy as np
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QComboBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QComboBox, QFileDialog
 from PyQt6.QtGui import QImage, QPixmap, QIcon
-from PyQt6.QtCore import Qt, pyqtSlot, QSize
+from PyQt6.QtCore import Qt, pyqtSlot, QSize, QDateTime
 from core.camera_handler import CameraHandler, OPENCV_AVAILABLE
 from gui.settings import load_settings, save_settings
 
@@ -16,6 +16,7 @@ class CameraWidget(QWidget):
         self.settings = load_settings()
         self.handler = CameraHandler()
         self.handler.frame_ready.connect(self.update_frame)
+        self.last_raw_frame = None
         
         # Načtení uložené rotace a zrcadlení
         self.current_rotation = self.settings.get("camera_rotation", 0)
@@ -55,6 +56,13 @@ class CameraWidget(QWidget):
         self.btn_mirror.setCheckable(True)
         self.btn_mirror.setChecked(self.is_mirrored)
         self.btn_mirror.clicked.connect(self._mirror_camera)
+
+        self.btn_screenshot = QPushButton()
+        self.btn_screenshot.setIcon(QIcon("svg/screenshot.svg"))
+        self.btn_screenshot.setIconSize(QSize(16, 16))
+        self.btn_screenshot.setFixedSize(30, 24)
+        self.btn_screenshot.setToolTip("Uložit snímek")
+        self.btn_screenshot.clicked.connect(self._take_screenshot)
         
         self.cmb_source = QComboBox()
         self.cmb_source.setFixedWidth(110)
@@ -64,6 +72,7 @@ class CameraWidget(QWidget):
         header_lay.addStretch()
         header_lay.addWidget(self.btn_rotate)
         header_lay.addWidget(self.btn_mirror)
+        header_lay.addWidget(self.btn_screenshot)
         header_lay.addWidget(self.cmb_source)
         self.main_layout.addLayout(header_lay)
 
@@ -170,18 +179,38 @@ class CameraWidget(QWidget):
     @pyqtSlot(object)
     def update_frame(self, frame):
         if frame is None or not self.viewfinder.isVisible(): return
+        self.last_raw_frame = frame.copy()
         
         # Konverze BGR (OpenCV) na RGB
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        h, w, ch = frame.shape
+        h, w, ch = frame_rgb.shape
         bytes_per_line = ch * w
         
-        qt_image = QImage(frame.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+        qt_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
         pixmap = QPixmap.fromImage(qt_image)
         scaled_pixmap = pixmap.scaled(self.viewfinder.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
         
         self.viewfinder.setPixmap(scaled_pixmap)
+
+    def _take_screenshot(self):
+        """Uloží aktuální snímek z kamery do souboru."""
+        if self.last_raw_frame is None:
+            return
+        
+        timestamp = QDateTime.currentDateTime().toString("yyyyMMdd_HHmmss")
+        default_path = f"foto_{timestamp}.jpg"
+        
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Uložit snímek", default_path, "Obrázky (*.jpg *.png)"
+        )
+        
+        if path:
+            try:
+                # OpenCV ukládá v BGR, což self.last_raw_frame je
+                cv2.imwrite(path, self.last_raw_frame)
+            except Exception as e:
+                print(f"Chyba při ukládání snímku: {e}")
 
     def closeEvent(self, event):
         self.handler.stop()

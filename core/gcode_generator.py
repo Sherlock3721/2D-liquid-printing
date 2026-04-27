@@ -108,8 +108,14 @@ def generate_gcode(logic, params):
         result.append(settings["loop_start_gcode"])
         if not result[-1].endswith("\n"): result.append("\n")
 
-        # OPRAVA: Pro transformace používáme index 'i', který odpovídá pořadí v 'positions' i 'gcode_items'
-        t = transforms[i] if transforms and i < len(transforms) else None
+        # OPRAVA: Pro transformace používáme index measurement_idx, který odpovídá pořadí v gcode_items (bez odplivu)
+        t = None
+        if not is_prime and transforms and measurement_idx < len(transforms):
+            t = transforms[measurement_idx]
+        
+        # Explicitně zajistíme absolutní souřadnice pro pohyb a relativní pro extruzi
+        result.append("G90 ; Absolutní souřadnice pohybu\n")
+        result.append("M83 ; Relativní souřadnice extruze\n")
         
         current_overrides = slide_overrides.get(str(measurement_idx) if not is_prime else "-1", {})
         loc_z = current_overrides.get('z_offset', z_offset)
@@ -175,7 +181,6 @@ def generate_gcode(logic, params):
             result.append(f"G1 Z{print_z + 2.0:.3f} F1000 ; Z-hop pro odpliv\n")
             result.append(f"G0 X{x1:.3f} Y{y1:.3f} F3000\n")
             result.append(f"G1 Z{print_z:.3f} F1000\n")
-            result.append("M83 ; Relativní extruze\n")
             
             curr_y = y1
             direction = 1
@@ -196,7 +201,6 @@ def generate_gcode(logic, params):
             result.append(f"G0 Z{print_z + 2.0:.3f} F1000\n")
         else:
             if logic.is_vector:
-                result.append("M83 ; Prepnuti na relativni extruzi pro vektory\n")
                 result.append("G92 E0.0 ; Reset extruderu pro toto sklicko\n")
                 is_retracted = False
                 
