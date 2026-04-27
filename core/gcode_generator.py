@@ -16,8 +16,16 @@ def generate_gcode(logic, params):
     flow_mult = params.get('flow_multiplier', 1.0)
     
     # Výchozí kalibrační faktor z průměru filamentu (1 µl = 1 mm³)
+    # VŽDY přepočítáváme, abychom se vyhnuli chybám při změně průměru v GUI
     default_cal = 1.0 / (math.pi * ((filament_diam / 2.0) ** 2))
-    cal_factor = settings.get("calibration_factor", default_cal)
+    
+    # OPRAVA: Pokud je v settings uložena stará hodnota, která neodpovídá aktuálnímu průměru, 
+    # upřednostníme nově vypočítanou hodnotu.
+    saved_cal = settings.get("calibration_factor")
+    if saved_cal is not None and abs(saved_cal - 0.014108) < 0.000001 and abs(filament_diam - 9.5) > 0.1:
+        cal_factor = default_cal
+    else:
+        cal_factor = settings.get("calibration_factor", default_cal)
     
     ext_calc = ExtrusionCalculator(
         filament_diameter=filament_diam, 
@@ -77,6 +85,8 @@ def generate_gcode(logic, params):
         z_shift = abs(min_needed_z) + 1.0 
 
     result = []
+    # Pojistka jednotek
+    result.append("G21 ; Nastavení jednotek na milimetry\n")
     # Startovní G-code (včetně G28/G80)
     result.append(settings["start_gcode"])
     if not result[-1].endswith("\n"): result.append("\n")
@@ -100,6 +110,9 @@ def generate_gcode(logic, params):
     last_abs_x, last_abs_y = 0.0, 0.0 # Pro výpočet travelů mezi sklíčky
 
     for i, (posun_x, posun_y, sw, sh, is_prime) in enumerate(positions):
+        # OPRAVA: Overrides musíme brát podle skutečného indexu měření
+        current_overrides = slide_overrides.get(str(measurement_idx) if not is_prime else "-1", {})
+        
         if is_prime:
             result.append(f"\n; --- VZOREK (ODPLIV) ---\n")
         else:
@@ -117,7 +130,6 @@ def generate_gcode(logic, params):
         result.append("G90 ; Absolutní souřadnice pohybu\n")
         result.append("M83 ; Relativní souřadnice extruze\n")
         
-        current_overrides = slide_overrides.get(str(measurement_idx) if not is_prime else "-1", {})
         loc_z = current_overrides.get('z_offset', z_offset)
         loc_ext = current_overrides.get('extrusion_rate', extrusion_rate)
         loc_spd = current_overrides.get('print_speed', print_speed)
@@ -289,6 +301,8 @@ def generate_gcode(logic, params):
                         last_abs_x, last_abs_y = ax, ay
                     if 'Z' in orig_l_up: modified_line = re.sub(r'Z([0-9\.\-]+)', f"Z{print_z:.3f}", modified_line, flags=re.I)
                     result.append(modified_line + comment + "\n")            
+        
+        if not is_prime:
             measurement_idx += 1
 
         result.append(settings["loop_end_gcode"])

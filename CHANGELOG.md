@@ -2,6 +2,13 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.3.8] - 2026-04-27
+
+### 🛠 Opravy chyb
+*   **Kritická oprava extruze:** Opraven výpočet vytlačování kapaliny. Při aktivním odplivu docházelo k chybnému mapování parametrů, což vedlo k ignorování uživatelského nastavení a použití výchozích hodnot (přibližně 10× méně kapaliny).
+*   **Kalibrační faktor:** G-code generátor nyní automaticky přepočítává kalibrační faktor z aktuálního průměru stříkačky, čímž se předchází chybám způsobeným zastaralým nastavením v `settings.json`.
+*   **Jednotky G-kódu:** Přidán explicitní příkaz `G21` na začátek každého souboru pro zajištění práce v milimetrech.
+
 ## [1.3.7] - 2026-04-27
 
 ### 🚀 Novinky a vylepšení
