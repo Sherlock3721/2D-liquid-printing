@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayo
 from PyQt6.QtGui import QImage, QPixmap, QIcon
 from PyQt6.QtCore import Qt, pyqtSlot, QSize, QDateTime
 from core.camera_handler import CameraHandler, OPENCV_AVAILABLE
+from core.utils import get_resource_path
 from gui.settings import load_settings, save_settings
 
 class CameraWidget(QWidget):
@@ -42,14 +43,14 @@ class CameraWidget(QWidget):
         self.lbl_title.setStyleSheet("font-weight: bold; color: #aaa;")
         
         self.btn_rotate = QPushButton()
-        self.btn_rotate.setIcon(QIcon("svg/rotate.svg"))
+        self.btn_rotate.setIcon(QIcon(get_resource_path("svg/rotate.svg")))
         self.btn_rotate.setIconSize(QSize(16, 16))
         self.btn_rotate.setFixedSize(30, 24)
         self.btn_rotate.setToolTip("Otočit obraz o 90°")
         self.btn_rotate.clicked.connect(self._rotate_camera)
 
         self.btn_mirror = QPushButton()
-        self.btn_mirror.setIcon(QIcon("svg/mirror.svg"))
+        self.btn_mirror.setIcon(QIcon(get_resource_path("svg/mirror.svg")))
         self.btn_mirror.setIconSize(QSize(16, 16))
         self.btn_mirror.setFixedSize(30, 24)
         self.btn_mirror.setToolTip("Zrcadlově obrátit obraz")
@@ -58,7 +59,7 @@ class CameraWidget(QWidget):
         self.btn_mirror.clicked.connect(self._mirror_camera)
 
         self.btn_screenshot = QPushButton()
-        self.btn_screenshot.setIcon(QIcon("svg/screenshot.svg"))
+        self.btn_screenshot.setIcon(QIcon(get_resource_path("svg/screenshot.svg")))
         self.btn_screenshot.setIconSize(QSize(16, 16))
         self.btn_screenshot.setFixedSize(30, 24)
         self.btn_screenshot.setToolTip("Uložit snímek")

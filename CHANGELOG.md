@@ -2,6 +2,15 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.4.0] - 2026-04-30
+
+### 🚀 Novinky a vylepšení
+*   **Správa prostředků:** Centralizovaná logika pro načítání ikon a externích souborů pomocí `core.utils.get_resource_path`. Zajišťuje plnou kompatibilitu při balení aplikace do .exe (PyInstaller).
+*   **Podpora SVG:** Přidána závislost `PyQt6-Svg` pro lepší vykreslování a manipulaci s vektorovými ikonami v manuálním ovládání pohybu.
+
+### 🛠 Opravy chyb
+*   Opraveno načítání ikon v různých částech aplikace, které mohlo selhat při spuštění z jiného pracovního adresáře.
+
 ## [1.3.9] - 2026-04-27
 
 ### 🚀 Novinky a vylepšení

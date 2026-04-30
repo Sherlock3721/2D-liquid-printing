@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QGridLayout,
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QIcon, QPixmap, QPainter
 from PyQt6.QtSvg import QSvgRenderer
+from core.utils import get_resource_path
 from gui.settings import load_settings
 import os
 
@@ -29,7 +30,7 @@ class ManualMovementWidget(QWidget):
     def _load_svg_icons(self):
         """Načte ikony ze souboru manual_movement.svg a opraví barvy pro QSvgRenderer."""
         self.icons = {}
-        svg_path = os.path.join(os.getcwd(), "svg", "manual_movement.svg")
+        svg_path = get_resource_path("svg/manual_movement.svg")
         if not os.path.exists(svg_path):
             print(f"Varování: Soubor {svg_path} nebyl nalezen.")
             return

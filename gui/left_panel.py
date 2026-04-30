@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QHBoxLayout, QCo
                              QPushButton, QFrame, QProgressBar)
 from PyQt6.QtCore import pyqtSignal, Qt, QSize
 from PyQt6.QtGui import QIcon
+from core.utils import get_resource_path
 from printer_com import SerialPrinterWorker
 from gui.settings import load_settings
 from gui.feedback_dialog import FeedbackDialog
@@ -181,7 +182,7 @@ class LeftPanel(QWidget):
         self.cmb_port = QComboBox()
         self.cmb_port.addItem("Automaticky")
         self.btn_refresh_ports = QPushButton()
-        self.btn_refresh_ports.setIcon(QIcon("svg/rotate.svg"))
+        self.btn_refresh_ports.setIcon(QIcon(get_resource_path("svg/rotate.svg")))
         self.btn_refresh_ports.setIconSize(QSize(16, 16))
         self.btn_refresh_ports.setFixedWidth(30)
         self.btn_refresh_ports.clicked.connect(self._refresh_ports)

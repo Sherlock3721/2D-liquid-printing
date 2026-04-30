@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget,
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 
-APP_VERSION = "1.3.9"
+APP_VERSION = "1.4.0"
 APP_NAME = "Droplet Printing Interface (DPI)"
 APP_ID = f"cz.vut.droplet_printer.{APP_VERSION}" # Jedinečné ID aplikace pro Windows Taskbar
 
@@ -18,6 +18,7 @@ if sys.platform.startswith("win"):
     except Exception as e:
         print("Failed to set AppUserModelID:", e)
 
+from core.utils import get_resource_path
 from gui.settings import load_settings
 from gui.menu_bar import create_main_menu
 from gui.left_panel import LeftPanel
@@ -35,7 +36,7 @@ class GCodeApp(QMainWindow):
         self.resize(1200, 800)
         
         # Nastavení ikony okna
-        icon_path = os.path.join(os.getcwd(), "icon.ico")
+        icon_path = get_resource_path("icon.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         
