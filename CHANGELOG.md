@@ -2,11 +2,16 @@
 
 Všechny významné změny v tomto projektu budou dokumentovány v tomto souboru.
 
+## [1.4.1] - 2026-04-30
+
+### 🛠 Opravy chyb
+*   **requirements.txt:** Odstraněna neexistující závislost `PyQt6-Svg`. Modul `QtSvg` je již součástí standardní instalace `PyQt6`.
+
 ## [1.4.0] - 2026-04-30
 
 ### 🚀 Novinky a vylepšení
 *   **Správa prostředků:** Centralizovaná logika pro načítání ikon a externích souborů pomocí `core.utils.get_resource_path`. Zajišťuje plnou kompatibilitu při balení aplikace do .exe (PyInstaller).
-*   **Podpora SVG:** Přidána závislost `PyQt6-Svg` pro lepší vykreslování a manipulaci s vektorovými ikonami v manuálním ovládání pohybu.
+*   **Podpora SVG:** Zprovozněno korektní vykreslování vektorových ikon v manuálním ovládání pohybu.
 
 ### 🛠 Opravy chyb
 *   Opraveno načítání ikon v různých částech aplikace, které mohlo selhat při spuštění z jiného pracovního adresáře.
